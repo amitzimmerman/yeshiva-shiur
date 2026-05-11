@@ -36,11 +36,16 @@ async function fetchData() {
     if (!res.ok) throw new Error(`שגיאת שרת ${res.status}`);
     const data = await res.json();
     if (!Array.isArray(data)) throw new Error('תגובה לא תקינה');
-    // Detect old flat-file format (before subfolder migration)
+    // Old flat-file format → wrap as single series
     if (data.length > 0 && !data[0].files) {
-      throw new Error('ה-Apps Script לא עודכן עדיין. עדכן את הקוד ב-script.google.com ועשה Deploy → New version.');
+      allSeries = [{ id: 'root', name: 'שיעורים', files: data }];
+    } else {
+      // Filter out empty series
+      allSeries = data.filter(s => s.files && s.files.length > 0);
     }
-    allSeries = data;
+    if (allSeries.length === 0) {
+      throw new Error('לא נמצאו שיעורים. ודא שהקבצים הועברו לתיקיות המשנה בדרייב.');
+    }
     renderSeries();
   } catch (e) {
     document.getElementById('errorMsg').textContent =
