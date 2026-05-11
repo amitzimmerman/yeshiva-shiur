@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:bneidavid.org)",
+      "Bash(gh auth *)",
+      "PowerShell(gh auth status)"
+    ]
+  }
+}

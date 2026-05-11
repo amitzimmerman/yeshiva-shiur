@@ -1,14 +1,9 @@
-// ─── Config (stored in localStorage) ────────────────────────────────────────
-function getConfig() {
-  return {
-    folderUrl: localStorage.getItem('drive_folder_url') || '',
-    apiKey:    localStorage.getItem('drive_api_key')    || '',
-  };
-}
+// ─── Config ──────────────────────────────────────────────────────────────────
+const SCRIPT_URL_KEY = 'apps_script_url';
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwoUpXTtNcrCj14mc_JvaQMcCJp6DgVSsARfLkxKvxG17iB3HlnZ8Oh1JgY8ZYj1pFn/exec';
 
-function extractFolderId(url) {
-  const m = url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
-  return m ? m[1] : null;
+function getScriptUrl() {
+  return localStorage.getItem(SCRIPT_URL_KEY) || DEFAULT_SCRIPT_URL;
 }
 
 // ─── User marks ──────────────────────────────────────────────────────────────
@@ -20,10 +15,8 @@ function saveMarks() {
   localStorage.setItem('watched', JSON.stringify([...watched]));
 }
 
-// ─── All files fetched from Drive ────────────────────────────────────────────
-let allFiles = [];
-
-// ─── UI state ────────────────────────────────────────────────────────────────
+// ─── State ───────────────────────────────────────────────────────────────────
+let allFiles     = [];
 let activeFilter = 'all';
 let searchQuery  = '';
 let sortBy       = 'name';
@@ -39,91 +32,65 @@ function showToast(msg) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
-// ─── Show / hide sections ────────────────────────────────────────────────────
+// ─── Section visibility ──────────────────────────────────────────────────────
 function showSection(name) {
-  ['loadingState','setupState','errorState','shiurimList','emptyState']
-    .forEach(id => {
-      const el = document.getElementById(id);
-      el.style.display = (id === name) ? (id === 'shiurimList' ? 'flex' : 'block') : 'none';
-    });
-  if (name === 'shiurimList') document.getElementById('shiurimList').style.display = 'flex';
+  ['loadingState', 'setupState', 'errorState', 'emptyState'].forEach(id => {
+    document.getElementById(id).style.display = (id === name) ? 'block' : 'none';
+  });
+  const list = document.getElementById('shiurimList');
+  list.style.display = (name === 'shiurimList') ? 'flex' : 'none';
 }
 
-// ─── Fetch from Google Drive API ─────────────────────────────────────────────
-async function fetchDriveFiles() {
-  const { folderUrl, apiKey } = getConfig();
-  if (!folderUrl || !apiKey) { showSection('setupState'); return; }
-
-  const folderId = extractFolderId(folderUrl);
-  if (!folderId) {
-    showError('קישור התיקייה לא תקין. ודא שהוא נראה כך: drive.google.com/drive/folders/...');
-    return;
-  }
+// ─── Fetch from Apps Script ───────────────────────────────────────────────────
+async function fetchFiles() {
+  const url = getScriptUrl();
+  if (!url) { showSection('setupState'); return; }
 
   showSection('loadingState');
 
-  const query  = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-  const fields = encodeURIComponent('files(id,name,createdTime,mimeType,size)');
-  const url    = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=${fields}&orderBy=name&pageSize=1000&key=${apiKey}`;
-
   try {
     const res = await fetch(url);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      const msg = err?.error?.message || `שגיאה ${res.status}`;
-      showError(msg);
-      return;
-    }
+    if (!res.ok) throw new Error(`שגיאת שרת ${res.status}`);
     const data = await res.json();
-    allFiles = (data.files || []).filter(f =>
-      f.mimeType.startsWith('audio/') ||
-      f.mimeType.startsWith('video/') ||
-      f.name.match(/\.(mp3|mp4|wav|ogg|m4a|flac|aac)$/i)
-    );
+    if (!Array.isArray(data)) throw new Error('תגובה לא תקינה מה-Script');
+    allFiles = data;
     render();
   } catch (e) {
-    showError('לא ניתן להתחבר ל-Google Drive. בדוק חיבור אינטרנט והגדרות.');
+    document.getElementById('errorMsg').textContent =
+      e.message.includes('Failed to fetch')
+        ? 'לא ניתן להתחבר. ודא שה-Apps Script פורסם כ-Web App עם גישה ל-Anyone.'
+        : e.message;
+    showSection('errorState');
   }
 }
 
-function showError(msg) {
-  document.getElementById('errorMsg').textContent = msg;
-  showSection('errorState');
-}
-
-// ─── Filter & sort ───────────────────────────────────────────────────────────
-function getFiltered() {
-  let list = allFiles.filter(f => {
-    const q = searchQuery.trim().toLowerCase();
-    if (q && !cleanName(f.name).toLowerCase().includes(q)) return false;
-    if (activeFilter === 'liked'    && !liked.has(f.id))   return false;
-    if (activeFilter === 'watched'  && !watched.has(f.id)) return false;
-    if (activeFilter === 'unwatched' && watched.has(f.id)) return false;
-    return true;
-  });
-
-  list.sort((a, b) => {
-    if (sortBy === 'name')      return a.name.localeCompare(b.name, 'he');
-    if (sortBy === 'date_desc') return new Date(b.createdTime) - new Date(a.createdTime);
-    if (sortBy === 'date_asc')  return new Date(a.createdTime) - new Date(b.createdTime);
-    return 0;
-  });
-
-  return list;
-}
-
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 function cleanName(filename) {
   return filename.replace(/\.[^/.]+$/, '');
 }
 
-function formatDate(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+function dlUrl(id) {
+  return `https://drive.google.com/uc?export=download&id=${id}`;
 }
 
-function driveDownloadUrl(id) {
-  return `https://drive.google.com/uc?export=download&id=${id}`;
+function getFiltered() {
+  let list = allFiles.filter(f => {
+    const q = searchQuery.trim().toLowerCase();
+    if (q && !cleanName(f.name).toLowerCase().includes(q)) return false;
+    if (activeFilter === 'liked'     && !liked.has(f.id))   return false;
+    if (activeFilter === 'watched'   && !watched.has(f.id)) return false;
+    if (activeFilter === 'unwatched' &&  watched.has(f.id)) return false;
+    return true;
+  });
+
+  list.sort((a, b) => {
+    if (sortBy === 'name')      return cleanName(a.name).localeCompare(cleanName(b.name), 'he');
+    if (sortBy === 'date_desc') return (b.date || '').localeCompare(a.date || '');
+    if (sortBy === 'date_asc')  return (a.date || '').localeCompare(b.date || '');
+    return 0;
+  });
+
+  return list;
 }
 
 // ─── Render ───────────────────────────────────────────────────────────────────
@@ -137,12 +104,10 @@ function render() {
   const list = document.getElementById('shiurimList');
   list.innerHTML = '';
 
-  if (filtered.length === 0) {
-    showSection(allFiles.length === 0 ? 'setupState' : 'emptyState');
-    return;
-  }
-
+  if (allFiles.length === 0) { showSection('setupState');  return; }
+  if (filtered.length === 0) { showSection('emptyState');  return; }
   showSection('shiurimList');
+
   const tmpl = document.getElementById('cardTemplate');
 
   filtered.forEach(f => {
@@ -150,11 +115,11 @@ function render() {
     const card  = clone.querySelector('.shiur-card');
 
     card.dataset.id = f.id;
-    if (liked.has(f.id))     card.classList.add('is-liked');
-    if (watched.has(f.id))   card.classList.add('is-watched');
-    if (playingId === f.id)  card.classList.add('is-playing');
+    if (liked.has(f.id))    card.classList.add('is-liked');
+    if (watched.has(f.id))  card.classList.add('is-watched');
+    if (playingId === f.id) card.classList.add('is-playing');
 
-    clone.querySelector('.card-date').textContent  = formatDate(f.createdTime);
+    clone.querySelector('.card-date').textContent  = f.date || '';
     clone.querySelector('.card-title').textContent = cleanName(f.name);
 
     if (watched.has(f.id))
@@ -162,12 +127,15 @@ function render() {
 
     // Play
     const btnPlay = clone.querySelector('.btn-play');
-    if (playingId === f.id) { btnPlay.textContent = '⏸ מושמע'; btnPlay.classList.add('playing'); }
+    if (playingId === f.id) {
+      btnPlay.textContent = '⏸ מושמע';
+      btnPlay.classList.add('playing');
+    }
     btnPlay.addEventListener('click', () => playFile(f));
 
     // Download
     const btnDl = clone.querySelector('.btn-dl');
-    btnDl.href = driveDownloadUrl(f.id);
+    btnDl.href = dlUrl(f.id);
     btnDl.addEventListener('click', () => {
       watched.add(f.id);
       saveMarks();
@@ -203,7 +171,6 @@ function render() {
 function playFile(f) {
   const player = document.getElementById('audioPlayer');
   const bar    = document.getElementById('playerBar');
-  const title  = document.getElementById('playerTitle');
 
   if (playingId === f.id) {
     player.paused ? player.play() : player.pause();
@@ -211,8 +178,8 @@ function playFile(f) {
   }
 
   playingId = f.id;
-  player.src = driveDownloadUrl(f.id);
-  title.textContent = cleanName(f.name);
+  player.src = dlUrl(f.id);
+  document.getElementById('playerTitle').textContent = cleanName(f.name);
   bar.style.display = 'flex';
   player.play().catch(() => {});
   render();
@@ -229,9 +196,7 @@ document.getElementById('playerClose').addEventListener('click', () => {
 
 // ─── Settings modal ───────────────────────────────────────────────────────────
 function openModal() {
-  const { folderUrl, apiKey } = getConfig();
-  document.getElementById('folderUrl').value = folderUrl;
-  document.getElementById('apiKey').value    = apiKey;
+  document.getElementById('scriptUrl').value = getScriptUrl();
   document.getElementById('settingsModal').classList.add('open');
 }
 
@@ -248,17 +213,14 @@ document.getElementById('settingsModal').addEventListener('click', e => {
 });
 
 document.getElementById('saveSettings').addEventListener('click', () => {
-  const folderUrl = document.getElementById('folderUrl').value.trim();
-  const apiKey    = document.getElementById('apiKey').value.trim();
-  if (!folderUrl || !apiKey) { showToast('⚠️ יש למלא את שני השדות'); return; }
-  if (!extractFolderId(folderUrl)) { showToast('⚠️ קישור תיקייה לא תקין'); return; }
-  localStorage.setItem('drive_folder_url', folderUrl);
-  localStorage.setItem('drive_api_key',    apiKey);
+  const url = document.getElementById('scriptUrl').value.trim();
+  if (!url) { showToast('⚠️ יש להזין URL'); return; }
+  localStorage.setItem(SCRIPT_URL_KEY, url);
   closeModal();
-  fetchDriveFiles();
+  fetchFiles();
 });
 
-// ─── Filters & search ─────────────────────────────────────────────────────────
+// ─── Filters ─────────────────────────────────────────────────────────────────
 document.getElementById('searchInput').addEventListener('input', e => {
   searchQuery = e.target.value; render();
 });
@@ -277,7 +239,7 @@ document.getElementById('resetBtn').addEventListener('click', () => {
   render();
 });
 
-document.getElementById('reloadBtn').addEventListener('click', fetchDriveFiles);
+document.getElementById('reloadBtn').addEventListener('click', fetchFiles);
 
 document.querySelectorAll('.qf-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -289,9 +251,8 @@ document.querySelectorAll('.qf-btn').forEach(btn => {
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
-const { folderUrl, apiKey } = getConfig();
-if (folderUrl && apiKey) {
-  fetchDriveFiles();
+if (getScriptUrl()) {
+  fetchFiles();
 } else {
   showSection('setupState');
 }

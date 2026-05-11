@@ -26,24 +26,15 @@
 <div class="modal-overlay" id="settingsModal">
   <div class="modal">
     <div class="modal-header">
-      <h2>⚙️ חיבור ל-Google Drive</h2>
+      <h2>⚙️ הגדרות</h2>
       <button class="modal-close" id="closeModal">✕</button>
     </div>
     <div class="modal-body">
       <div class="field-group">
-        <label>קישור תיקיית Google Drive</label>
-        <input type="text" id="folderUrl"
-          placeholder="https://drive.google.com/drive/folders/..." />
-        <small>התיקייה חייבת להיות פתוחה לציבור ("כל מי שיש לו הקישור יכול לצפות")</small>
-      </div>
-      <div class="field-group">
-        <label>Google API Key</label>
-        <input type="password" id="apiKey" placeholder="AIza..." autocomplete="off" />
-        <small>
-          ב-<a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a>
-          ← APIs &amp; Services ← Credentials ← Create API Key.
-          ודא שה-Drive API מופעל תחת "Enabled APIs".
-        </small>
+        <label>Apps Script URL</label>
+        <input type="text" id="scriptUrl"
+          placeholder="https://script.google.com/macros/s/.../exec" />
+        <small>ה-URL שקיבלת לאחר ה-Deploy של ה-Apps Script</small>
       </div>
     </div>
     <div class="modal-footer">
@@ -97,7 +88,7 @@
   <div class="setup-state" id="setupState">
     <div class="setup-icon">📂</div>
     <h2>חבר את תיקיית Google Drive שלך</h2>
-    <p>לחץ על "הגדרות" כדי להזין קישור תיקייה ו-API Key</p>
+    <p>לחץ על "הגדרות" כדי להזין את ה-Apps Script URL</p>
     <button class="btn-setup" id="btnSetupOpen">⚙️ פתח הגדרות</button>
   </div>
 
@@ -107,7 +98,7 @@
     <button class="btn-setup" id="btnErrorSettings">⚙️ פתח הגדרות</button>
   </div>
 
-  <div class="shiurim-list" id="shiurimList" style="display:none;"></div>
+  <div class="shiurim-list" id="shiurimList"></div>
 
   <div class="empty-state" id="emptyState" style="display:none;">
     <div class="empty-icon">🔍</div>
