@@ -315,9 +315,9 @@ document.getElementById('reloadOnError').addEventListener('click', fetchData);
 // ─── Search ───────────────────────────────────────────────────────────────────
 document.getElementById('searchInput').addEventListener('input', e => {
   searchQuery = e.target.value;
-  if (view === 'rabbis')  renderRabbis();
-  if (view === 'series')  renderSeries();
-  if (view === 'shiurim') renderShiurim();
+  if (currentSeries)      renderShiurim();
+  else if (currentRabbi)  renderSeries();
+  else                    renderRabbis();
 });
 
 // ─── Shiurim controls ─────────────────────────────────────────────────────────
