@@ -129,16 +129,21 @@ function renderRabbis() {
       s + sr.files.filter(f => watched.has(f.id)).length, 0);
     const pct = total ? Math.round((doneNum / total) * 100) : 0;
 
+    const initial = rabbi.name.replace(/^הרב\s+/, '').charAt(0) || '?';
     const card = document.createElement('div');
     card.className = 'grid-card';
     card.innerHTML = `
-      <div class="grid-card-icon">👤</div>
-      <div class="grid-card-name">${rabbi.name}</div>
-      <div class="grid-card-meta">
-        <strong>${nonEmptySeries.length}</strong> סדרות ·
-        <strong>${total}</strong> שיעורים
+      <div class="grid-card-cover">
+        <div class="grid-card-avatar">${initial}</div>
       </div>
-      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>`;
+      <div class="grid-card-body">
+        <div class="grid-card-name">${rabbi.name}</div>
+        <div class="grid-card-meta">
+          <strong>${nonEmptySeries.length}</strong> סדרות ·
+          <strong>${total}</strong> שיעורים
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      </div>`;
     card.addEventListener('click', () => showSeries(rabbi));
     grid.appendChild(card);
   });
@@ -170,16 +175,21 @@ function renderSeries() {
     const doneNum = series.files.filter(f => watched.has(f.id)).length;
     const pct     = total ? Math.round((doneNum / total) * 100) : 0;
 
+    const initial = series.name.charAt(0) || '?';
     const card = document.createElement('div');
     card.className = 'grid-card';
     card.innerHTML = `
-      <div class="grid-card-icon">📚</div>
-      <div class="grid-card-name">${series.name}</div>
-      <div class="grid-card-meta">
-        <strong>${total}</strong> שיעורים
-        ${doneNum ? `· <span style="color:var(--green)">✅ ${doneNum}</span>` : ''}
+      <div class="grid-card-cover grid-card-cover--series">
+        <div class="grid-card-avatar">${initial}</div>
       </div>
-      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>`;
+      <div class="grid-card-body">
+        <div class="grid-card-name">${series.name}</div>
+        <div class="grid-card-meta">
+          <strong>${total}</strong> שיעורים
+          ${doneNum ? `· <span style="color:var(--green)">✅ ${doneNum}</span>` : ''}
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      </div>`;
     card.addEventListener('click', () => showShiurim(series));
     grid.appendChild(card);
   });

@@ -223,52 +223,83 @@ a { color: inherit; text-decoration: none; }
 /* ══ Card Grid (rabbis & series) ══ */
 .card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 1.1rem;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1.4rem;
 }
 
 .grid-card {
   background: var(--card-bg);
-  border-radius: var(--radius);
+  border-radius: 14px;
   box-shadow: var(--shadow);
   border: 1.5px solid var(--border);
-  padding: 1.4rem 1.1rem 1.1rem;
   cursor: pointer;
-  transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+  transition: box-shadow 0.22s, transform 0.22s, border-color 0.22s;
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
-  position: relative;
   overflow: hidden;
-}
-.grid-card::before {
-  content: '';
-  position: absolute; top: 0; right: 0; left: 0; height: 4px;
-  background: linear-gradient(90deg, var(--gold), var(--navy-light));
 }
 .grid-card:hover {
   box-shadow: var(--shadow-lg);
-  transform: translateY(-3px);
+  transform: translateY(-5px);
   border-color: var(--gold);
 }
-.grid-card-icon { font-size: 2rem; }
+
+/* Cover image area */
+.grid-card-cover {
+  height: 150px;
+  background: linear-gradient(145deg, var(--navy-light), var(--navy-dark));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex-shrink: 0;
+}
+.grid-card-cover::after {
+  content: '';
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 50px;
+  background: linear-gradient(to top, rgba(0,0,0,0.35), transparent);
+}
+.grid-card-avatar {
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  background: rgba(200,168,75,0.18);
+  border: 3px solid var(--gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.2rem;
+  font-weight: 900;
+  color: #fff;
+  z-index: 1;
+  flex-shrink: 0;
+}
+
+/* Card body */
+.grid-card-body {
+  padding: 1rem 1.1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  flex: 1;
+}
 .grid-card-name {
-  font-size: 1rem; font-weight: 800;
+  font-size: 1.05rem; font-weight: 800;
   color: var(--navy-dark); line-height: 1.35;
 }
 .grid-card-meta {
   font-size: 0.8rem; color: var(--muted);
   display: flex; align-items: center; gap: 0.3rem;
-  margin-top: auto;
+  flex-wrap: wrap;
 }
 .grid-card-meta strong { color: var(--navy); }
 .progress-bar {
-  height: 4px; background: var(--border);
-  border-radius: 2px; overflow: hidden; margin-top: 0.25rem;
+  height: 5px; background: var(--border);
+  border-radius: 3px; overflow: hidden; margin-top: auto; padding-top: 0.4rem;
 }
 .progress-fill {
   height: 100%; background: var(--green);
-  border-radius: 2px; transition: width 0.3s;
+  border-radius: 3px; transition: width 0.3s;
 }
 
 /* ══ Shiurim List ══ */
@@ -373,9 +404,15 @@ a { color: inherit; text-decoration: none; }
 }
 .toast.show { transform: translateX(-50%) translateY(0); }
 
+.grid-card-cover--series {
+  background: linear-gradient(145deg, #2d5a8e, #1b2d4f);
+}
+
 /* ══ Responsive ══ */
 @media (max-width: 600px) {
-  .card-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .card-grid { grid-template-columns: repeat(2, 1fr); }
+  .grid-card-cover { height: 110px; }
+  .grid-card-avatar { width: 60px; height: 60px; font-size: 1.6rem; }
   .filter-bar-inner { flex-direction: column; }
   .search-wrap { width: 100%; }
   .player-bar { flex-wrap: wrap; }
