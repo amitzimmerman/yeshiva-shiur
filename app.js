@@ -159,26 +159,17 @@ function render() {
 
 // ─── Audio player ─────────────────────────────────────────────────────────────
 function playFile(f) {
-  const player = document.getElementById('audioPlayer');
-  const bar    = document.getElementById('playerBar');
-
-  if (playingId === f.id) {
-    player.paused ? player.play() : player.pause();
-    return;
-  }
-
+  if (playingId === f.id) return;
   playingId = f.id;
-  player.src = dlUrl(f.id);
+  const iframe = document.getElementById('drivePlayer');
+  iframe.src = `https://drive.google.com/file/d/${f.id}/preview`;
   document.getElementById('playerTitle').textContent = cleanName(f.name);
-  bar.style.display = 'flex';
-  player.play().catch(() => {});
+  document.getElementById('playerBar').style.display = 'flex';
   render();
 }
 
 document.getElementById('playerClose').addEventListener('click', () => {
-  const player = document.getElementById('audioPlayer');
-  player.pause();
-  player.src = '';
+  document.getElementById('drivePlayer').src = '';
   document.getElementById('playerBar').style.display = 'none';
   playingId = null;
   render();
