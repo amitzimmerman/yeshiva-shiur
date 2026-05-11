@@ -51,13 +51,13 @@ async function fetchData() {
 
 // ─── View manager ─────────────────────────────────────────────────────────────
 function setView(name) {
-  document.getElementById('loadingState').style.display  = name === 'loading'  ? 'block' : 'none';
-  document.getElementById('errorState').style.display    = name === 'error'    ? 'block' : 'none';
-  document.getElementById('rabbisGrid').style.display    = name === 'rabbis'   ? 'grid'  : 'none';
-  document.getElementById('seriesGrid').style.display    = name === 'series'   ? 'grid'  : 'none';
-  document.getElementById('shiurimList').style.display   = name === 'shiurim'  ? 'flex'  : 'none';
-  document.getElementById('emptyState').style.display    = name === 'empty'    ? 'block' : 'none';
-  document.getElementById('quickFilterBar').style.display = name === 'shiurim' ? 'block' : 'none';
+  document.getElementById('loadingState').style.display   = name === 'loading'  ? 'block' : 'none';
+  document.getElementById('errorState').style.display     = name === 'error'    ? 'block' : 'none';
+  document.getElementById('rabbisGrid').style.display     = name === 'rabbis'   ? 'grid'  : 'none';
+  document.getElementById('seriesGrid').style.display     = name === 'series'   ? 'grid'  : 'none';
+  document.getElementById('shiurimList').style.display    = (name === 'shiurim' || name === 'search') ? 'flex' : 'none';
+  document.getElementById('emptyState').style.display     = name === 'empty'    ? 'block' : 'none';
+  document.getElementById('quickFilterBar').style.display = name === 'shiurim'  ? 'block' : 'none';
 
   const shiurCtrls = document.getElementById('shiurControls');
   shiurCtrls.style.display = name === 'shiurim' ? 'contents' : 'none';
@@ -322,12 +322,90 @@ document.getElementById('bcRabbi').addEventListener('click', () => {
 document.getElementById('reloadBtn').addEventListener('click', fetchData);
 document.getElementById('reloadOnError').addEventListener('click', fetchData);
 
+// ─── Global search ────────────────────────────────────────────────────────────
+function renderGlobalSearch() {
+  const q = searchQuery.toLowerCase();
+  const results = [];
+  allData.forEach(rabbi => {
+    rabbi.series.forEach(series => {
+      if (!series.files || series.files.length === 0) return;
+      series.files.forEach(f => {
+        if (cleanName(f.name).toLowerCase().includes(q)) {
+          results.push({ f, rabbi, series });
+        }
+      });
+    });
+  });
+
+  if (results.length === 0) {
+    document.getElementById('emptyMsg').textContent = 'לא נמצאו שיעורים';
+    setView('empty'); return;
+  }
+
+  setView('search');
+  const list = document.getElementById('shiurimList');
+  list.innerHTML = '';
+  const tmpl = document.getElementById('cardTemplate');
+
+  results.forEach(({ f, rabbi, series }) => {
+    const clone = tmpl.content.cloneNode(true);
+    const card  = clone.querySelector('.shiur-card');
+
+    if (liked.has(f.id))    card.classList.add('is-liked');
+    if (watched.has(f.id))  card.classList.add('is-watched');
+    if (playingId === f.id) card.classList.add('is-playing');
+
+    clone.querySelector('.card-date').textContent  = `${rabbi.name} › ${series.name}`;
+    clone.querySelector('.card-title').textContent = cleanName(f.name);
+    if (watched.has(f.id)) clone.querySelector('.watched-dot').style.display = 'block';
+
+    const btnPlay = clone.querySelector('.btn-play');
+    if (playingId === f.id) { btnPlay.textContent = '⏸ מושמע'; btnPlay.classList.add('playing'); }
+    btnPlay.addEventListener('click', () => playFile(f));
+
+    const btnDl = clone.querySelector('.btn-dl');
+    btnDl.href = dlUrl(f.id);
+    btnDl.addEventListener('click', () => {
+      watched.add(f.id); saveMarks();
+      showToast('⬇️ מתחיל הורדה — סומן כנצפה');
+      setTimeout(renderGlobalSearch, 150);
+    });
+
+    const btnWa = clone.querySelector('.btn-wa');
+    btnWa.href = `https://wa.me/?text=${encodeURIComponent(`${cleanName(f.name)}\n${dlUrl(f.id)}`)}`;
+
+    const btnLike = clone.querySelector('.btn-like');
+    btnLike.textContent = liked.has(f.id) ? '❤️' : '🤍';
+    if (liked.has(f.id)) btnLike.classList.add('active');
+    btnLike.addEventListener('click', () => {
+      liked.has(f.id) ? liked.delete(f.id) : liked.add(f.id);
+      showToast(liked.has(f.id) ? '❤️ נוסף למועדפים' : '💔 הוסר מהמועדפים');
+      saveMarks(); renderGlobalSearch();
+    });
+
+    const btnW = clone.querySelector('.btn-watched');
+    btnW.textContent = watched.has(f.id) ? '✅' : '☐';
+    if (watched.has(f.id)) btnW.classList.add('active');
+    btnW.addEventListener('click', () => {
+      watched.has(f.id) ? watched.delete(f.id) : watched.add(f.id);
+      showToast(watched.has(f.id) ? '✅ סומן כנצפה' : '🔵 סומן כלא נצפה');
+      saveMarks(); renderGlobalSearch();
+    });
+
+    list.appendChild(clone);
+  });
+}
+
 // ─── Search ───────────────────────────────────────────────────────────────────
 document.getElementById('searchInput').addEventListener('input', e => {
   searchQuery = e.target.value;
-  if (currentSeries)      renderShiurim();
-  else if (currentRabbi)  renderSeries();
-  else                    renderRabbis();
+  if (searchQuery.trim()) {
+    renderGlobalSearch();
+  } else {
+    if (currentSeries)     renderShiurim();
+    else if (currentRabbi) renderSeries();
+    else                   renderRabbis();
+  }
 });
 
 // ─── Shiurim controls ─────────────────────────────────────────────────────────
