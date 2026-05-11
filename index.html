@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>בית המדרש המקוון</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ═══ Header ═══ -->
+<header class="site-header">
+  <div class="header-top">
+    <div class="logo-area">
+      <div class="logo-icon">📖</div>
+      <div class="logo-text">
+        <span class="logo-main">בית המדרש המקוון</span>
+        <span class="logo-sub">שיעורי תורה להאזנה והורדה</span>
+      </div>
+    </div>
+    <button class="btn-settings" id="btnSettings">⚙️ הגדרות</button>
+  </div>
+</header>
+
+<!-- ═══ Settings Modal ═══ -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>⚙️ חיבור ל-Google Drive</h2>
+      <button class="modal-close" id="closeModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-group">
+        <label>קישור תיקיית Google Drive</label>
+        <input type="text" id="folderUrl"
+          placeholder="https://drive.google.com/drive/folders/..." />
+        <small>התיקייה חייבת להיות פתוחה לציבור ("כל מי שיש לו הקישור יכול לצפות")</small>
+      </div>
+      <div class="field-group">
+        <label>Google API Key</label>
+        <input type="password" id="apiKey" placeholder="AIza..." autocomplete="off" />
+        <small>
+          ב-<a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a>
+          ← APIs &amp; Services ← Credentials ← Create API Key.
+          ודא שה-Drive API מופעל תחת "Enabled APIs".
+        </small>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-save" id="saveSettings">💾 שמור וטען שיעורים</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Filter Bar ═══ -->
+<div class="filter-bar">
+  <div class="filter-bar-inner">
+    <div class="search-wrap">
+      <input id="searchInput" type="text" placeholder="חיפוש שיעור..." />
+      <button class="search-btn">🔍</button>
+    </div>
+    <div class="filter-group">
+      <label>מיון</label>
+      <select id="sortBy">
+        <option value="name">א–ת</option>
+        <option value="date_desc">חדש ראשון</option>
+        <option value="date_asc">ישן ראשון</option>
+      </select>
+    </div>
+    <button class="btn-reset"  id="resetBtn">אפס</button>
+    <button class="btn-reload" id="reloadBtn">🔄 רענן</button>
+  </div>
+</div>
+
+<!-- ═══ Quick Filters ═══ -->
+<div class="quick-filter-bar">
+  <div class="quick-filter-inner">
+    <span class="qf-label">הצג:</span>
+    <button class="qf-btn active" data-filter="all">הכל</button>
+    <button class="qf-btn" data-filter="liked">❤️ אהבתי</button>
+    <button class="qf-btn" data-filter="watched">✅ ראיתי</button>
+    <button class="qf-btn" data-filter="unwatched">🔵 לא ראיתי</button>
+    <span class="stats-pill"              id="statsTotal">0 שיעורים</span>
+    <span class="stats-pill liked-pill"   id="statsLiked">0 ❤️</span>
+    <span class="stats-pill watched-pill" id="statsWatched">0 ✅</span>
+  </div>
+</div>
+
+<!-- ═══ Main ═══ -->
+<main class="site-main">
+
+  <div class="loading-state" id="loadingState" style="display:none;">
+    <div class="spinner"></div>
+    <p>טוען שיעורים מ-Google Drive...</p>
+  </div>
+
+  <div class="setup-state" id="setupState">
+    <div class="setup-icon">📂</div>
+    <h2>חבר את תיקיית Google Drive שלך</h2>
+    <p>לחץ על "הגדרות" כדי להזין קישור תיקייה ו-API Key</p>
+    <button class="btn-setup" id="btnSetupOpen">⚙️ פתח הגדרות</button>
+  </div>
+
+  <div class="error-state" id="errorState" style="display:none;">
+    <div class="error-icon">⚠️</div>
+    <p id="errorMsg"></p>
+    <button class="btn-setup" id="btnErrorSettings">⚙️ פתח הגדרות</button>
+  </div>
+
+  <div class="shiurim-list" id="shiurimList" style="display:none;"></div>
+
+  <div class="empty-state" id="emptyState" style="display:none;">
+    <div class="empty-icon">🔍</div>
+    <p>לא נמצאו שיעורים</p>
+  </div>
+
+</main>
+
+<!-- ═══ Audio Player Bar ═══ -->
+<div class="player-bar" id="playerBar" style="display:none;">
+  <button class="player-close" id="playerClose">✕</button>
+  <div class="player-info">
+    <span class="player-title" id="playerTitle">—</span>
+  </div>
+  <audio id="audioPlayer" controls></audio>
+</div>
+
+<!-- ═══ Toast ═══ -->
+<div class="toast" id="toast"></div>
+
+<!-- ═══ Card Template ═══ -->
+<template id="cardTemplate">
+  <article class="shiur-card">
+    <div class="card-icon-col">
+      <div class="file-icon">🎵</div>
+      <div class="watched-dot" style="display:none;">✅</div>
+    </div>
+    <div class="card-body">
+      <div class="card-meta-top">
+        <span class="card-date"></span>
+      </div>
+      <h3 class="card-title"></h3>
+      <div class="card-actions">
+        <button class="btn-play">▶ האזן</button>
+        <a class="btn-dl" target="_blank">⬇ הורד</a>
+        <div class="card-marks">
+          <button class="btn-like"    title="אהבתי">🤍</button>
+          <button class="btn-watched" title="סמן כנצפה">☐</button>
+        </div>
+      </div>
+    </div>
+  </article>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>
