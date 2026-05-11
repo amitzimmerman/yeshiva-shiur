@@ -1,5 +1,5 @@
 // ─── Config ───────────────────────────────────────────────────────────────────
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwoUpXTtNcrCj14mc_JvaQMcCJp6DgVSsARfLkxKvxG17iB3HlnZ8Oh1JgY8ZYj1pFn/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxGF2aOQsO4UikziU30mIsRhHXmIqVrCErFJDl5PQNWsttPX-HVPDkAQcie585bPFB4/exec';
 
 // ─── Marks ────────────────────────────────────────────────────────────────────
 let liked   = new Set(JSON.parse(localStorage.getItem('liked')   || '[]'));
