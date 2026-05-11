@@ -36,6 +36,10 @@ async function fetchData() {
     if (!res.ok) throw new Error(`שגיאת שרת ${res.status}`);
     const data = await res.json();
     if (!Array.isArray(data)) throw new Error('תגובה לא תקינה');
+    // Detect old flat-file format (before subfolder migration)
+    if (data.length > 0 && !data[0].files) {
+      throw new Error('ה-Apps Script לא עודכן עדיין. עדכן את הקוד ב-script.google.com ועשה Deploy → New version.');
+    }
     allSeries = data;
     renderSeries();
   } catch (e) {
