@@ -1,10 +1,5 @@
 // ─── Config ──────────────────────────────────────────────────────────────────
-const SCRIPT_URL_KEY = 'apps_script_url';
-const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwoUpXTtNcrCj14mc_JvaQMcCJp6DgVSsARfLkxKvxG17iB3HlnZ8Oh1JgY8ZYj1pFn/exec';
-
-function getScriptUrl() {
-  return localStorage.getItem(SCRIPT_URL_KEY) || DEFAULT_SCRIPT_URL;
-}
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwoUpXTtNcrCj14mc_JvaQMcCJp6DgVSsARfLkxKvxG17iB3HlnZ8Oh1JgY8ZYj1pFn/exec';
 
 // ─── User marks ──────────────────────────────────────────────────────────────
 let liked   = new Set(JSON.parse(localStorage.getItem('liked')   || '[]'));
@@ -34,31 +29,27 @@ function showToast(msg) {
 
 // ─── Section visibility ──────────────────────────────────────────────────────
 function showSection(name) {
-  ['loadingState', 'setupState', 'errorState', 'emptyState'].forEach(id => {
+  ['loadingState', 'errorState', 'emptyState'].forEach(id => {
     document.getElementById(id).style.display = (id === name) ? 'block' : 'none';
   });
-  const list = document.getElementById('shiurimList');
-  list.style.display = (name === 'shiurimList') ? 'flex' : 'none';
+  document.getElementById('shiurimList').style.display =
+    (name === 'shiurimList') ? 'flex' : 'none';
 }
 
 // ─── Fetch from Apps Script ───────────────────────────────────────────────────
 async function fetchFiles() {
-  const url = getScriptUrl();
-  if (!url) { showSection('setupState'); return; }
-
   showSection('loadingState');
-
   try {
-    const res = await fetch(url);
+    const res = await fetch(SCRIPT_URL);
     if (!res.ok) throw new Error(`שגיאת שרת ${res.status}`);
     const data = await res.json();
-    if (!Array.isArray(data)) throw new Error('תגובה לא תקינה מה-Script');
+    if (!Array.isArray(data)) throw new Error('תגובה לא תקינה');
     allFiles = data;
     render();
   } catch (e) {
     document.getElementById('errorMsg').textContent =
       e.message.includes('Failed to fetch')
-        ? 'לא ניתן להתחבר. ודא שה-Apps Script פורסם כ-Web App עם גישה ל-Anyone.'
+        ? 'לא ניתן להתחבר. בדוק חיבור אינטרנט ונסה שוב.'
         : e.message;
     showSection('errorState');
   }
@@ -104,8 +95,7 @@ function render() {
   const list = document.getElementById('shiurimList');
   list.innerHTML = '';
 
-  if (allFiles.length === 0) { showSection('setupState');  return; }
-  if (filtered.length === 0) { showSection('emptyState');  return; }
+  if (filtered.length === 0) { showSection('emptyState'); return; }
   showSection('shiurimList');
 
   const tmpl = document.getElementById('cardTemplate');
@@ -194,32 +184,6 @@ document.getElementById('playerClose').addEventListener('click', () => {
   render();
 });
 
-// ─── Settings modal ───────────────────────────────────────────────────────────
-function openModal() {
-  document.getElementById('scriptUrl').value = getScriptUrl();
-  document.getElementById('settingsModal').classList.add('open');
-}
-
-function closeModal() {
-  document.getElementById('settingsModal').classList.remove('open');
-}
-
-document.getElementById('btnSettings').addEventListener('click', openModal);
-document.getElementById('btnSetupOpen').addEventListener('click', openModal);
-document.getElementById('btnErrorSettings').addEventListener('click', openModal);
-document.getElementById('closeModal').addEventListener('click', closeModal);
-document.getElementById('settingsModal').addEventListener('click', e => {
-  if (e.target === document.getElementById('settingsModal')) closeModal();
-});
-
-document.getElementById('saveSettings').addEventListener('click', () => {
-  const url = document.getElementById('scriptUrl').value.trim();
-  if (!url) { showToast('⚠️ יש להזין URL'); return; }
-  localStorage.setItem(SCRIPT_URL_KEY, url);
-  closeModal();
-  fetchFiles();
-});
-
 // ─── Filters ─────────────────────────────────────────────────────────────────
 document.getElementById('searchInput').addEventListener('input', e => {
   searchQuery = e.target.value; render();
@@ -240,6 +204,7 @@ document.getElementById('resetBtn').addEventListener('click', () => {
 });
 
 document.getElementById('reloadBtn').addEventListener('click', fetchFiles);
+document.getElementById('reloadOnError').addEventListener('click', fetchFiles);
 
 document.querySelectorAll('.qf-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -251,8 +216,4 @@ document.querySelectorAll('.qf-btn').forEach(btn => {
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
-if (getScriptUrl()) {
-  fetchFiles();
-} else {
-  showSection('setupState');
-}
+fetchFiles();

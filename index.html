@@ -18,30 +18,8 @@
         <span class="logo-sub">שיעורי תורה להאזנה והורדה</span>
       </div>
     </div>
-    <button class="btn-settings" id="btnSettings">⚙️ הגדרות</button>
   </div>
 </header>
-
-<!-- ═══ Settings Modal ═══ -->
-<div class="modal-overlay" id="settingsModal">
-  <div class="modal">
-    <div class="modal-header">
-      <h2>⚙️ הגדרות</h2>
-      <button class="modal-close" id="closeModal">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="field-group">
-        <label>Apps Script URL</label>
-        <input type="text" id="scriptUrl"
-          placeholder="https://script.google.com/macros/s/.../exec" />
-        <small>ה-URL שקיבלת לאחר ה-Deploy של ה-Apps Script</small>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-save" id="saveSettings">💾 שמור וטען שיעורים</button>
-    </div>
-  </div>
-</div>
 
 <!-- ═══ Filter Bar ═══ -->
 <div class="filter-bar">
@@ -80,22 +58,15 @@
 <!-- ═══ Main ═══ -->
 <main class="site-main">
 
-  <div class="loading-state" id="loadingState" style="display:none;">
+  <div class="loading-state" id="loadingState">
     <div class="spinner"></div>
     <p>טוען שיעורים מ-Google Drive...</p>
-  </div>
-
-  <div class="setup-state" id="setupState">
-    <div class="setup-icon">📂</div>
-    <h2>חבר את תיקיית Google Drive שלך</h2>
-    <p>לחץ על "הגדרות" כדי להזין את ה-Apps Script URL</p>
-    <button class="btn-setup" id="btnSetupOpen">⚙️ פתח הגדרות</button>
   </div>
 
   <div class="error-state" id="errorState" style="display:none;">
     <div class="error-icon">⚠️</div>
     <p id="errorMsg"></p>
-    <button class="btn-setup" id="btnErrorSettings">⚙️ פתח הגדרות</button>
+    <button class="btn-setup" id="reloadOnError">🔄 נסה שוב</button>
   </div>
 
   <div class="shiurim-list" id="shiurimList"></div>
