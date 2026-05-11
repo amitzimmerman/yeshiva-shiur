@@ -3,7 +3,10 @@
     "allow": [
       "WebFetch(domain:bneidavid.org)",
       "Bash(gh auth *)",
-      "PowerShell(gh auth status)"
+      "PowerShell(gh auth status)",
+      "Read(//mnt/c/Users/amitz/Desktop/**)",
+      "Bash(node --input-type=module)",
+      "Bash(node -e ' *)"
     ]
   }
 }
