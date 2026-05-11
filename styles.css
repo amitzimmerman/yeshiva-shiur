@@ -322,6 +322,14 @@ a { color: inherit; text-decoration: none; }
 }
 .btn-dl:hover { background: #edd98a; }
 
+.btn-wa {
+  padding: 0.38rem 0.7rem; background: #e9fbe9; color: #1a7a1a;
+  border-radius: 7px; font-size: 0.9rem;
+  border: 1.5px solid #7bc67b; transition: background 0.18s;
+  white-space: nowrap; display: inline-block;
+}
+.btn-wa:hover { background: #c8f0c8; }
+
 .card-marks { display: flex; gap: 0.35rem; margin-right: auto; }
 .btn-like, .btn-watched {
   width: 33px; height: 33px; border: 1.5px solid var(--border);

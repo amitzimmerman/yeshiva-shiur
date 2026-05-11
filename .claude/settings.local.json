@@ -7,7 +7,11 @@
       "Read(//mnt/c/Users/amitz/Desktop/**)",
       "Bash(node --input-type=module)",
       "Bash(node -e ' *)",
-      "WebFetch(domain:script.google.com)"
+      "WebFetch(domain:script.google.com)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "WebFetch(domain:script.googleusercontent.com)"
     ]
   }
 }

@@ -64,7 +64,6 @@ function setView(name) {
 
   view = name;
   updateBreadcrumb();
-  updateSearch();
 }
 
 // ─── Breadcrumb ───────────────────────────────────────────────────────────────
@@ -106,6 +105,7 @@ function updateSearch() {
 // ─── Rabbis view ──────────────────────────────────────────────────────────────
 function showRabbis() {
   currentRabbi = null; currentSeries = null;
+  updateSearch();
   setView('rabbis');
   renderRabbis();
 }
@@ -147,6 +147,7 @@ function renderRabbis() {
 // ─── Series view ──────────────────────────────────────────────────────────────
 function showSeries(rabbi) {
   currentRabbi = rabbi; currentSeries = null;
+  updateSearch();
   setView('series');
   renderSeries();
 }
@@ -189,6 +190,7 @@ function showShiurim(series) {
   currentSeries = series;
   activeFilter  = 'all';
   sortBy        = 'name';
+  updateSearch();
   document.querySelectorAll('.qf-btn').forEach(b => b.classList.remove('active'));
   document.querySelector('.qf-btn[data-filter="all"]').classList.add('active');
   document.getElementById('sortBy').value = 'name';
@@ -246,6 +248,10 @@ function renderShiurim() {
     const btnPlay = clone.querySelector('.btn-play');
     if (playingId === f.id) { btnPlay.textContent = '⏸ מושמע'; btnPlay.classList.add('playing'); }
     btnPlay.addEventListener('click', () => playFile(f));
+
+    const btnWa = clone.querySelector('.btn-wa');
+    const waText = encodeURIComponent(`${cleanName(f.name)}\n${dlUrl(f.id)}`);
+    btnWa.href = `https://wa.me/?text=${waText}`;
 
     const btnDl = clone.querySelector('.btn-dl');
     btnDl.href = dlUrl(f.id);
