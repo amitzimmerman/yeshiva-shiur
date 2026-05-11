@@ -9,7 +9,6 @@
 </head>
 <body>
 
-<!-- ═══ Header ═══ -->
 <header class="site-header">
   <div class="header-top">
     <div class="logo-area">
@@ -19,48 +18,27 @@
         <span class="logo-sub">שיעורי תורה להאזנה והורדה</span>
       </div>
     </div>
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb" id="breadcrumb" style="display:none;">
+      <button class="bc-btn" id="bcHome">🏠 ראשי</button>
+      <span class="bc-sep">›</span>
+      <button class="bc-btn" id="bcRabbi" style="display:none;"></button>
+      <span class="bc-sep" id="bcSep2" style="display:none;">›</span>
+      <span class="bc-current" id="bcCurrent"></span>
+    </nav>
+    <button class="btn-reload-top" id="reloadBtn">🔄</button>
   </div>
 </header>
 
-<!-- ═══ Series View ═══ -->
-<div id="seriesView">
-  <div class="filter-bar">
-    <div class="filter-bar-inner">
-      <div class="search-wrap">
-        <input id="seriesSearch" type="text" placeholder="חיפוש סדרה..." />
-        <button class="search-btn">🔍</button>
-      </div>
-      <button class="btn-reload" id="reloadBtn">🔄 רענן</button>
+<!-- Filter bar (shared) -->
+<div class="filter-bar">
+  <div class="filter-bar-inner">
+    <div class="search-wrap">
+      <input id="searchInput" type="text" placeholder="חיפוש..." />
+      <button class="search-btn">🔍</button>
     </div>
-  </div>
-
-  <main class="site-main">
-    <div class="loading-state" id="loadingState">
-      <div class="spinner"></div>
-      <p>טוען סדרות מ-Google Drive...</p>
-    </div>
-    <div class="error-state" id="errorState" style="display:none;">
-      <div class="error-icon">⚠️</div>
-      <p id="errorMsg"></p>
-      <button class="btn-setup" id="reloadOnError">🔄 נסה שוב</button>
-    </div>
-    <div class="series-grid" id="seriesGrid" style="display:none;"></div>
-    <div class="empty-state" id="seriesEmpty" style="display:none;">
-      <div class="empty-icon">🔍</div>
-      <p>לא נמצאו סדרות</p>
-    </div>
-  </main>
-</div>
-
-<!-- ═══ Shiurim View ═══ -->
-<div id="shiurimView" style="display:none;">
-  <div class="filter-bar">
-    <div class="filter-bar-inner">
-      <button class="btn-back" id="backBtn">← חזור לסדרות</button>
-      <div class="search-wrap">
-        <input id="shiurSearch" type="text" placeholder="חיפוש שיעור..." />
-        <button class="search-btn">🔍</button>
-      </div>
+    <!-- Shiurim-only controls -->
+    <div id="shiurControls" style="display:none; display:contents;">
       <div class="filter-group">
         <label>מיון</label>
         <select id="sortBy">
@@ -72,31 +50,53 @@
       <button class="btn-reset" id="resetBtn">אפס</button>
     </div>
   </div>
-
-  <div class="quick-filter-bar">
-    <div class="quick-filter-inner">
-      <span class="series-title-bar" id="seriesTitleBar"></span>
-      <span class="qf-label">הצג:</span>
-      <button class="qf-btn active" data-filter="all">הכל</button>
-      <button class="qf-btn" data-filter="liked">❤️ אהבתי</button>
-      <button class="qf-btn" data-filter="watched">✅ ראיתי</button>
-      <button class="qf-btn" data-filter="unwatched">🔵 לא ראיתי</button>
-      <span class="stats-pill"              id="statsTotal">0 שיעורים</span>
-      <span class="stats-pill liked-pill"   id="statsLiked">0 ❤️</span>
-      <span class="stats-pill watched-pill" id="statsWatched">0 ✅</span>
-    </div>
-  </div>
-
-  <main class="site-main">
-    <div class="shiurim-list" id="shiurimList"></div>
-    <div class="empty-state" id="shiurimEmpty" style="display:none;">
-      <div class="empty-icon">🔍</div>
-      <p>לא נמצאו שיעורים</p>
-    </div>
-  </main>
 </div>
 
-<!-- ═══ Audio Player Bar ═══ -->
+<!-- Quick filters (shiurim only) -->
+<div class="quick-filter-bar" id="quickFilterBar" style="display:none;">
+  <div class="quick-filter-inner">
+    <span class="qf-label">הצג:</span>
+    <button class="qf-btn active" data-filter="all">הכל</button>
+    <button class="qf-btn" data-filter="liked">❤️ אהבתי</button>
+    <button class="qf-btn" data-filter="watched">✅ ראיתי</button>
+    <button class="qf-btn" data-filter="unwatched">🔵 לא ראיתי</button>
+    <span class="stats-pill"              id="statsTotal"></span>
+    <span class="stats-pill liked-pill"   id="statsLiked"></span>
+    <span class="stats-pill watched-pill" id="statsWatched"></span>
+  </div>
+</div>
+
+<main class="site-main">
+  <!-- Loading -->
+  <div class="loading-state" id="loadingState">
+    <div class="spinner"></div>
+    <p>טוען מ-Google Drive...</p>
+  </div>
+
+  <!-- Error -->
+  <div class="error-state" id="errorState" style="display:none;">
+    <div class="error-icon">⚠️</div>
+    <p id="errorMsg"></p>
+    <button class="btn-setup" id="reloadOnError">🔄 נסה שוב</button>
+  </div>
+
+  <!-- Rabbis grid -->
+  <div id="rabbisGrid" class="card-grid" style="display:none;"></div>
+
+  <!-- Series grid -->
+  <div id="seriesGrid" class="card-grid" style="display:none;"></div>
+
+  <!-- Shiurim list -->
+  <div id="shiurimList" class="shiurim-list" style="display:none;"></div>
+
+  <!-- Empty -->
+  <div class="empty-state" id="emptyState" style="display:none;">
+    <div class="empty-icon">🔍</div>
+    <p id="emptyMsg">לא נמצאו תוצאות</p>
+  </div>
+</main>
+
+<!-- Audio Player -->
 <div class="player-bar" id="playerBar" style="display:none;">
   <button class="player-close" id="playerClose">✕</button>
   <div class="player-info">
@@ -105,10 +105,8 @@
   <iframe id="drivePlayer" allow="autoplay" frameborder="0" src=""></iframe>
 </div>
 
-<!-- ═══ Toast ═══ -->
 <div class="toast" id="toast"></div>
 
-<!-- ═══ Card Template ═══ -->
 <template id="cardTemplate">
   <article class="shiur-card">
     <div class="card-icon-col">

@@ -1,4 +1,3 @@
-// ─── Config ───────────────────────────────────────────────────────────────────
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxGF2aOQsO4UikziU30mIsRhHXmIqVrCErFJDl5PQNWsttPX-HVPDkAQcie585bPFB4/exec';
 
 // ─── Marks ────────────────────────────────────────────────────────────────────
@@ -10,13 +9,15 @@ function saveMarks() {
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
-let allSeries      = [];   // [{id, name, files:[{id,name,date}]}]
-let currentSeries  = null; // the series currently open
-let activeFilter   = 'all';
-let shiurSearch    = '';
-let seriesSearch   = '';
-let sortBy         = 'name';
-let playingId      = null;
+// view: 'rabbis' | 'series' | 'shiurim'
+let view          = 'rabbis';
+let allData       = [];   // [{id, name, series:[{id, name, files:[]}]}]
+let currentRabbi  = null;
+let currentSeries = null;
+let activeFilter  = 'all';
+let searchQuery   = '';
+let sortBy        = 'name';
+let playingId     = null;
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 let toastTimer;
@@ -30,101 +31,173 @@ function showToast(msg) {
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 async function fetchData() {
-  setSeriesSection('loading');
+  setView('loading');
   try {
     const res  = await fetch(SCRIPT_URL);
     if (!res.ok) throw new Error(`שגיאת שרת ${res.status}`);
     const data = await res.json();
     if (!Array.isArray(data)) throw new Error('תגובה לא תקינה');
-    // Old flat-file format → wrap as single series
-    if (data.length > 0 && !data[0].files) {
-      allSeries = [{ id: 'root', name: 'שיעורים', files: data }];
-    } else {
-      // Filter out empty series
-      allSeries = data.filter(s => s.files && s.files.length > 0);
-    }
-    if (allSeries.length === 0) {
-      throw new Error('לא נמצאו שיעורים. ודא שהקבצים הועברו לתיקיות המשנה בדרייב.');
-    }
-    renderSeries();
+    allData = data.filter(r => r.series && r.series.some(s => s.files && s.files.length > 0));
+    if (allData.length === 0) throw new Error('לא נמצאו שיעורים. ודא שהקבצים הועברו לתיקיות בדרייב.');
+    showRabbis();
   } catch (e) {
     document.getElementById('errorMsg').textContent =
       e.message.includes('Failed to fetch')
         ? 'לא ניתן להתחבר. בדוק חיבור אינטרנט ונסה שוב.'
         : e.message;
-    setSeriesSection('error');
+    setView('error');
   }
 }
 
+// ─── View manager ─────────────────────────────────────────────────────────────
+function setView(name) {
+  document.getElementById('loadingState').style.display  = name === 'loading'  ? 'block' : 'none';
+  document.getElementById('errorState').style.display    = name === 'error'    ? 'block' : 'none';
+  document.getElementById('rabbisGrid').style.display    = name === 'rabbis'   ? 'grid'  : 'none';
+  document.getElementById('seriesGrid').style.display    = name === 'series'   ? 'grid'  : 'none';
+  document.getElementById('shiurimList').style.display   = name === 'shiurim'  ? 'flex'  : 'none';
+  document.getElementById('emptyState').style.display    = name === 'empty'    ? 'block' : 'none';
+  document.getElementById('quickFilterBar').style.display = name === 'shiurim' ? 'block' : 'none';
+
+  const shiurCtrls = document.getElementById('shiurControls');
+  shiurCtrls.style.display = name === 'shiurim' ? 'contents' : 'none';
+
+  view = name;
+  updateBreadcrumb();
+  updateSearch();
+}
+
+// ─── Breadcrumb ───────────────────────────────────────────────────────────────
+function updateBreadcrumb() {
+  const bc      = document.getElementById('breadcrumb');
+  const bcRabbi = document.getElementById('bcRabbi');
+  const bcSep2  = document.getElementById('bcSep2');
+  const bcCur   = document.getElementById('bcCurrent');
+
+  if (view === 'rabbis') {
+    bc.style.display = 'none';
+    return;
+  }
+  bc.style.display = 'flex';
+
+  if (view === 'series') {
+    bcRabbi.style.display = 'none';
+    bcSep2.style.display  = 'none';
+    bcCur.textContent     = currentRabbi?.name || '';
+  } else if (view === 'shiurim') {
+    bcRabbi.textContent   = currentRabbi?.name || '';
+    bcRabbi.style.display = 'inline-block';
+    bcSep2.style.display  = 'inline';
+    bcCur.textContent     = currentSeries?.name || '';
+  }
+}
+
+function updateSearch() {
+  const ph = {
+    rabbis:  'חיפוש רב...',
+    series:  'חיפוש סדרה...',
+    shiurim: 'חיפוש שיעור...',
+  };
+  document.getElementById('searchInput').placeholder = ph[view] || 'חיפוש...';
+  document.getElementById('searchInput').value = '';
+  searchQuery = '';
+}
+
+// ─── Rabbis view ──────────────────────────────────────────────────────────────
+function showRabbis() {
+  currentRabbi = null; currentSeries = null;
+  setView('rabbis');
+  renderRabbis();
+}
+
+function renderRabbis() {
+  const q    = searchQuery.toLowerCase();
+  const list = allData.filter(r => !q || r.name.toLowerCase().includes(q));
+
+  if (list.length === 0) {
+    document.getElementById('emptyMsg').textContent = 'לא נמצאו רבנים';
+    setView('empty'); return;
+  }
+  setView('rabbis');
+
+  const grid = document.getElementById('rabbisGrid');
+  grid.innerHTML = '';
+  list.forEach(rabbi => {
+    const total   = rabbi.series.reduce((s, sr) => s + sr.files.length, 0);
+    const doneNum = rabbi.series.reduce((s, sr) =>
+      s + sr.files.filter(f => watched.has(f.id)).length, 0);
+    const pct = total ? Math.round((doneNum / total) * 100) : 0;
+
+    const card = document.createElement('div');
+    card.className = 'grid-card';
+    card.innerHTML = `
+      <div class="grid-card-icon">👤</div>
+      <div class="grid-card-name">${rabbi.name}</div>
+      <div class="grid-card-meta">
+        <strong>${rabbi.series.length}</strong> סדרות ·
+        <strong>${total}</strong> שיעורים
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>`;
+    card.addEventListener('click', () => showSeries(rabbi));
+    grid.appendChild(card);
+  });
+}
+
 // ─── Series view ──────────────────────────────────────────────────────────────
-function setSeriesSection(name) {
-  document.getElementById('loadingState').style.display = name === 'loading' ? 'block' : 'none';
-  document.getElementById('errorState').style.display   = name === 'error'   ? 'block' : 'none';
-  document.getElementById('seriesGrid').style.display   = name === 'grid'    ? 'grid'  : 'none';
-  document.getElementById('seriesEmpty').style.display  = name === 'empty'   ? 'block' : 'none';
+function showSeries(rabbi) {
+  currentRabbi = rabbi; currentSeries = null;
+  setView('series');
+  renderSeries();
 }
 
 function renderSeries() {
-  const q        = seriesSearch.trim().toLowerCase();
-  const filtered = allSeries.filter(s => !q || s.name.toLowerCase().includes(q));
+  const q    = searchQuery.toLowerCase();
+  const list = currentRabbi.series.filter(s =>
+    s.files.length > 0 && (!q || s.name.toLowerCase().includes(q)));
 
-  if (filtered.length === 0) { setSeriesSection('empty'); return; }
-  setSeriesSection('grid');
+  if (list.length === 0) {
+    document.getElementById('emptyMsg').textContent = 'לא נמצאו סדרות';
+    setView('empty'); return;
+  }
+  setView('series');
 
   const grid = document.getElementById('seriesGrid');
   grid.innerHTML = '';
-
-  filtered.forEach(series => {
+  list.forEach(series => {
     const total   = series.files.length;
     const doneNum = series.files.filter(f => watched.has(f.id)).length;
     const pct     = total ? Math.round((doneNum / total) * 100) : 0;
 
     const card = document.createElement('div');
-    card.className = 'series-card';
+    card.className = 'grid-card';
     card.innerHTML = `
-      <div class="series-icon">📚</div>
-      <div class="series-name">${series.name}</div>
-      <div class="series-count">
-        <span class="series-count-num">${total}</span> שיעורים
-        ${doneNum ? `· <span style="color:var(--green)">✅ ${doneNum} נצפו</span>` : ''}
+      <div class="grid-card-icon">📚</div>
+      <div class="grid-card-name">${series.name}</div>
+      <div class="grid-card-meta">
+        <strong>${total}</strong> שיעורים
+        ${doneNum ? `· <span style="color:var(--green)">✅ ${doneNum}</span>` : ''}
       </div>
-      <div class="series-progress">
-        <div class="series-progress-fill" style="width:${pct}%"></div>
-      </div>`;
-    card.addEventListener('click', () => openSeries(series));
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>`;
+    card.addEventListener('click', () => showShiurim(series));
     grid.appendChild(card);
   });
 }
 
-function openSeries(series) {
+// ─── Shiurim view ─────────────────────────────────────────────────────────────
+function showShiurim(series) {
   currentSeries = series;
   activeFilter  = 'all';
-  shiurSearch   = '';
   sortBy        = 'name';
-
-  document.getElementById('seriesView').style.display  = 'none';
-  document.getElementById('shiurimView').style.display = 'block';
-  document.getElementById('seriesTitleBar').textContent = series.name;
-  document.getElementById('shiurSearch').value = '';
-  document.getElementById('sortBy').value = 'name';
   document.querySelectorAll('.qf-btn').forEach(b => b.classList.remove('active'));
   document.querySelector('.qf-btn[data-filter="all"]').classList.add('active');
-
+  document.getElementById('sortBy').value = 'name';
+  setView('shiurim');
   renderShiurim();
 }
 
-function backToSeries() {
-  currentSeries = null;
-  document.getElementById('shiurimView').style.display = 'none';
-  document.getElementById('seriesView').style.display  = 'block';
-  renderSeries();
-}
-
-// ─── Shiurim view ─────────────────────────────────────────────────────────────
 function getFiltered() {
   if (!currentSeries) return [];
-  const q = shiurSearch.trim().toLowerCase();
-
+  const q = searchQuery.toLowerCase();
   let list = currentSeries.files.filter(f => {
     if (q && !cleanName(f.name).toLowerCase().includes(q)) return false;
     if (activeFilter === 'liked'     && !liked.has(f.id))   return false;
@@ -132,7 +205,6 @@ function getFiltered() {
     if (activeFilter === 'unwatched' &&  watched.has(f.id)) return false;
     return true;
   });
-
   list.sort((a, b) => {
     if (sortBy === 'name')      return cleanName(a.name).localeCompare(cleanName(b.name), 'he');
     if (sortBy === 'date_desc') return (b.date || '').localeCompare(a.date || '');
@@ -144,8 +216,6 @@ function getFiltered() {
 
 function renderShiurim() {
   const filtered = getFiltered();
-  const total    = currentSeries?.files.length || 0;
-
   document.getElementById('statsTotal').textContent   = `${filtered.length} שיעורים`;
   document.getElementById('statsLiked').textContent   = `${liked.size} ❤️`;
   document.getElementById('statsWatched').textContent = `${watched.size} ✅`;
@@ -154,12 +224,10 @@ function renderShiurim() {
   list.innerHTML = '';
 
   if (filtered.length === 0) {
-    document.getElementById('shiurimEmpty').style.display = 'block';
-    list.style.display = 'none';
-    return;
+    document.getElementById('emptyMsg').textContent = 'לא נמצאו שיעורים';
+    setView('empty'); return;
   }
-  document.getElementById('shiurimEmpty').style.display = 'none';
-  list.style.display = 'flex';
+  setView('shiurim');
 
   const tmpl = document.getElementById('cardTemplate');
   filtered.forEach(f => {
@@ -226,35 +294,37 @@ document.getElementById('playerClose').addEventListener('click', () => {
   document.getElementById('drivePlayer').src = '';
   document.getElementById('playerBar').style.display = 'none';
   playingId = null;
-  renderShiurim();
+  if (view === 'shiurim') renderShiurim();
 });
 
-// ─── Events ───────────────────────────────────────────────────────────────────
-document.getElementById('backBtn').addEventListener('click', backToSeries);
+// ─── Navigation events ────────────────────────────────────────────────────────
+document.getElementById('bcHome').addEventListener('click', showRabbis);
+document.getElementById('bcRabbi').addEventListener('click', () => {
+  if (currentRabbi) showSeries(currentRabbi);
+});
 document.getElementById('reloadBtn').addEventListener('click', fetchData);
 document.getElementById('reloadOnError').addEventListener('click', fetchData);
 
-document.getElementById('seriesSearch').addEventListener('input', e => {
-  seriesSearch = e.target.value; renderSeries();
+// ─── Search ───────────────────────────────────────────────────────────────────
+document.getElementById('searchInput').addEventListener('input', e => {
+  searchQuery = e.target.value;
+  if (view === 'rabbis')  renderRabbis();
+  if (view === 'series')  renderSeries();
+  if (view === 'shiurim') renderShiurim();
 });
 
-document.getElementById('shiurSearch').addEventListener('input', e => {
-  shiurSearch = e.target.value; renderShiurim();
-});
-
+// ─── Shiurim controls ─────────────────────────────────────────────────────────
 document.getElementById('sortBy').addEventListener('change', e => {
   sortBy = e.target.value; renderShiurim();
 });
-
 document.getElementById('resetBtn').addEventListener('click', () => {
-  shiurSearch = ''; activeFilter = 'all'; sortBy = 'name';
-  document.getElementById('shiurSearch').value = '';
+  searchQuery = ''; activeFilter = 'all'; sortBy = 'name';
+  document.getElementById('searchInput').value = '';
   document.getElementById('sortBy').value = 'name';
   document.querySelectorAll('.qf-btn').forEach(b => b.classList.remove('active'));
   document.querySelector('.qf-btn[data-filter="all"]').classList.add('active');
   renderShiurim();
 });
-
 document.querySelectorAll('.qf-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     activeFilter = btn.dataset.filter;
