@@ -123,8 +123,9 @@ function renderRabbis() {
   const grid = document.getElementById('rabbisGrid');
   grid.innerHTML = '';
   list.forEach(rabbi => {
-    const total   = rabbi.series.reduce((s, sr) => s + sr.files.length, 0);
-    const doneNum = rabbi.series.reduce((s, sr) =>
+    const nonEmptySeries = rabbi.series.filter(s => s.files && s.files.length > 0);
+    const total   = nonEmptySeries.reduce((s, sr) => s + sr.files.length, 0);
+    const doneNum = nonEmptySeries.reduce((s, sr) =>
       s + sr.files.filter(f => watched.has(f.id)).length, 0);
     const pct = total ? Math.round((doneNum / total) * 100) : 0;
 
@@ -134,7 +135,7 @@ function renderRabbis() {
       <div class="grid-card-icon">👤</div>
       <div class="grid-card-name">${rabbi.name}</div>
       <div class="grid-card-meta">
-        <strong>${rabbi.series.length}</strong> סדרות ·
+        <strong>${nonEmptySeries.length}</strong> סדרות ·
         <strong>${total}</strong> שיעורים
       </div>
       <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>`;
