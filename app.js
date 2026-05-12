@@ -47,27 +47,37 @@ async function fetchFromNetwork() {
 }
 
 async function fetchData(forceRefresh = false) {
-  // Try cache first
   if (!forceRefresh) {
+    // 1. Try localStorage cache (instant)
     try {
       const raw = localStorage.getItem(DATA_CACHE_KEY);
       if (raw) {
-        const { ts, data } = JSON.parse(raw);
+        const { data } = JSON.parse(raw);
         if (data && data.length > 0) {
           allData = data;
           showRabbis();
-          // Always refresh in background
-          fetchFromNetwork().then(fresh => {
-            allData = fresh;
-            if (view === 'rabbis') renderRabbis();
-          }).catch(() => {});
+          refreshInBackground();
+          return;
+        }
+      }
+    } catch(e) {}
+
+    // 2. Try data.json from same origin (fast CDN, no spinner)
+    try {
+      const res = await fetch('data.json');
+      if (res.ok) {
+        const data = parseAndFilter(await res.json());
+        if (data.length > 0) {
+          allData = data;
+          showRabbis();
+          refreshInBackground();
           return;
         }
       }
     } catch(e) {}
   }
 
-  // No cache — show loading and fetch
+  // 3. Fallback: fetch live from Apps Script
   setView('loading');
   try {
     allData = await fetchFromNetwork();
@@ -80,6 +90,13 @@ async function fetchData(forceRefresh = false) {
         : e.message;
     setView('error');
   }
+}
+
+function refreshInBackground() {
+  fetchFromNetwork().then(fresh => {
+    allData = fresh;
+    if (view === 'rabbis') renderRabbis();
+  }).catch(() => {});
 }
 
 // ─── View manager ─────────────────────────────────────────────────────────────
