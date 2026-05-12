@@ -1,4 +1,4 @@
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxW-6uF7IFUvAl6_rAEun0B73hVjWNyjRF9lKkrg_zDHlc7reZesYZgXMAE8y7hx5kn/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwB3SRzaZvd-redo37KKCHEeFwJW50yxwiQwHNYqOOpahQo2ADVTi8HbsZeQgxau1he5w/exec';
 
 // ─── Marks ────────────────────────────────────────────────────────────────────
 let liked   = new Set(JSON.parse(localStorage.getItem('liked')   || '[]'));
