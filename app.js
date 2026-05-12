@@ -1,4 +1,4 @@
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyzApsBFMJ3Z-4pytTp9eEkVfKaPbOK5vJbo17tL_6_uRoUPIlANF6RYTujno1qpNJx/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwHbgsRH5YzuS2v6Nnk40XZhoEhfycWY0dYpdl5E-2FJ8MzLOHS9sBtPVbhvB78P_uzjg/exec';
 
 // ─── Marks ────────────────────────────────────────────────────────────────────
 let liked   = new Set(JSON.parse(localStorage.getItem('liked')   || '[]'));
@@ -375,7 +375,7 @@ function playFile(f, list, context) {
 }
 
 function audioSrc(id) {
-  return `https://drive.google.com/uc?export=download&id=${id}`;
+  return `https://drive.google.com/uc?export=open&id=${id}`;
 }
 
 function openPlayerPage(f) {
