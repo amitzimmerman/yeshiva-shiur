@@ -1,6 +1,44 @@
 const SCRIPT_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbx_SKDgy53zJy0ekpq6w8LtMIwJrwZq2Jsnba6FUgL5-FBQtrKzBiizDKNWE5rIM_tauw/exec';
 let SCRIPT_URL = localStorage.getItem('script_url') || SCRIPT_URL_DEFAULT;
 
+// ─── Admin mode ───────────────────────────────────────────────────────────────
+const ADMIN_CODE = 'drorAdmin';   // ← שנה לקוד שאתה רוצה
+let isAdmin = localStorage.getItem('isAdmin') === 'yes';
+
+function checkAdmin(callback) {
+  if (isAdmin) { callback(); return; }
+  // build inline modal
+  const overlay = document.createElement('div');
+  overlay.className = 'admin-overlay';
+  overlay.innerHTML = `
+    <div class="admin-box">
+      <div class="admin-title">🔐 כניסת מנהל</div>
+      <input id="adminInput" class="auth-input" type="password" placeholder="קוד ניהול" />
+      <div class="admin-row">
+        <button id="adminOk"     class="auth-btn"         style="flex:1">כניסה</button>
+        <button id="adminCancel" class="about-cancel-btn" style="flex:0 0 auto">ביטול</button>
+      </div>
+      <p id="adminErr" class="auth-error" style="display:none;">קוד שגוי</p>
+    </div>`;
+  document.body.appendChild(overlay);
+  const inp = overlay.querySelector('#adminInput');
+  inp.focus();
+  const attempt = () => {
+    if (inp.value === ADMIN_CODE) {
+      localStorage.setItem('isAdmin', 'yes');
+      isAdmin = true;
+      overlay.remove();
+      callback();
+    } else {
+      overlay.querySelector('#adminErr').style.display = 'block';
+      inp.value = '';
+    }
+  };
+  overlay.querySelector('#adminOk').addEventListener('click', attempt);
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') attempt(); });
+  overlay.querySelector('#adminCancel').addEventListener('click', () => overlay.remove());
+}
+
 // ─── Password ─────────────────────────────────────────────────────────────────
 (function() {
   const overlay = document.getElementById('authOverlay');
@@ -108,9 +146,24 @@ async function fetchData(forceRefresh = false) {
     if (allData.length === 0) throw new Error('לא נמצאו שיעורים. ודא שהקבצים הועברו לתיקיות בדרייב.');
     showRabbis();
   } catch (e) {
+    // If network fails on force-refresh, fall back to last known cache
+    if (forceRefresh) {
+      try {
+        const raw = localStorage.getItem(DATA_CACHE_KEY);
+        if (raw) {
+          const { data } = JSON.parse(raw);
+          if (data && data.length > 0) {
+            allData = data;
+            showRabbis();
+            showToast('⚠️ שגיאת רשת — מציג נתונים שמורים');
+            return;
+          }
+        }
+      } catch(_) {}
+    }
     document.getElementById('errorMsg').textContent =
       e.message.includes('Failed to fetch')
-        ? 'לא ניתן להתחבר. בדוק חיבור אינטרנט ונסה שוב.'
+        ? 'לא ניתן להתחבר לשרת. בדוק חיבור אינטרנט, או שנסה לנקות הרחבות דפדפן (Ad Blocker וכד׳).'
         : e.message;
     setView('error');
   }
@@ -747,8 +800,10 @@ const settingsModal  = document.getElementById('settingsModal');
 const scriptUrlInput = document.getElementById('scriptUrlInput');
 
 document.getElementById('settingsBtn').addEventListener('click', () => {
-  scriptUrlInput.value = SCRIPT_URL;
-  settingsModal.style.display = 'flex';
+  checkAdmin(() => {
+    scriptUrlInput.value = SCRIPT_URL;
+    settingsModal.style.display = 'flex';
+  });
 });
 document.getElementById('settingsCancel').addEventListener('click', () => {
   settingsModal.style.display = 'none';
@@ -877,9 +932,9 @@ function renderAboutPage(editing) {
         <p class="about-location-text">${esc(data.location)}</p>
         ${mapHtml}
       </div>` : ''}
-      <button id="aboutEditBtn" class="about-edit-btn">✏️ ערוך</button>
+      ${isAdmin ? `<button id="aboutEditBtn" class="about-edit-btn">✏️ ערוך</button>` : ''}
     `;
-    document.getElementById('aboutEditBtn').addEventListener('click', () => renderAboutPage(true));
+    if (isAdmin) document.getElementById('aboutEditBtn').addEventListener('click', () => renderAboutPage(true));
   }
 }
 
