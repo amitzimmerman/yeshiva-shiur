@@ -1,5 +1,5 @@
-const CACHE = 'dror-v5';
-const SHELL = ['/', '/index.html', '/styles.css', '/app.js', '/lessons.json', '/dror-logo.png'];
+const CACHE = 'dror-v6';
+const SHELL = ['/', '/index.html', '/styles.css', '/app.js', '/data.json', '/dror-logo.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(

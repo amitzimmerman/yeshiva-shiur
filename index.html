@@ -69,29 +69,15 @@
 <!-- Settings Modal -->
 <div id="settingsModal" class="settings-overlay" style="display:none;">
   <div class="settings-box">
-    <div class="settings-title">⚙️ הגדרות מנהל</div>
-
+    <div class="settings-title">⚙️ הגדרות</div>
     <label class="settings-label">קישור פריסת Apps Script</label>
     <input class="settings-input" id="scriptUrlInput" type="url"
            placeholder="https://script.google.com/macros/s/.../exec" dir="ltr" />
     <div class="settings-note">מצא את הקישור ב: Apps Script → פרוס → נהל פריסות</div>
-
-    <div class="settings-divider"></div>
-
-    <label class="settings-label">GitHub Token (לסנכרון אוטומטי)</label>
-    <input class="settings-input" id="ghTokenInput" type="password"
-           placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" dir="ltr" />
-    <div class="settings-note">
-      צור ב: github.com → Settings → Developer settings → Personal access tokens → Fine-grained<br/>
-      הרשאה נדרשת: <strong>Contents → Read and write</strong>
-    </div>
-
     <div class="settings-actions">
-      <button class="btn-settings-save" id="settingsSave">💾 שמור</button>
-      <button class="btn-sync"          id="syncBtn">🔄 סנכרן שיעורים</button>
+      <button class="btn-settings-save" id="settingsSave">💾 שמור וטען מחדש</button>
       <button class="btn-settings-cancel" id="settingsCancel">ביטול</button>
     </div>
-    <p class="settings-sync-status" id="syncStatus"></p>
   </div>
 </div>
 

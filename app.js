@@ -94,22 +94,24 @@ function showToast(msg) {
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 const DATA_CACHE_KEY = 'shiurim_cache_v1';
-const STATIC_JSON    = 'lessons.json';
-const GITHUB_REPO    = 'amitzimmerman/yeshiva-shiur';
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 function parseAndFilter(data) {
   if (!Array.isArray(data)) throw new Error('תגובה לא תקינה');
   return data.filter(r => r.series && r.series.some(s => s.files && s.files.length > 0));
 }
 
-function saveToCache(data) {
+async function fetchFromNetwork() {
+  const res = await fetch(SCRIPT_URL);
+  if (!res.ok) throw new Error(`שגיאת שרת ${res.status}`);
+  const data = parseAndFilter(await res.json());
   localStorage.setItem(DATA_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
+  return data;
 }
 
-// ─── Regular load: cache → lessons.json — never hits Apps Script ──────────────
 async function fetchData(forceRefresh = false) {
-  // 1. localStorage cache (instant, skip if force-refresh)
   if (!forceRefresh) {
+    // 1. Try localStorage cache (instant)
     try {
       const raw = localStorage.getItem(DATA_CACHE_KEY);
       if (raw) {
@@ -117,118 +119,62 @@ async function fetchData(forceRefresh = false) {
         if (data && data.length > 0) {
           allData = data;
           showRabbis();
+          refreshInBackground();
           return;
         }
       }
-    } catch(_) {}
+    } catch(e) {}
+
+    // 2. Try data.json from same origin (fast CDN, no spinner)
+    try {
+      const res = await fetch('data.json');
+      if (res.ok) {
+        const data = parseAndFilter(await res.json());
+        if (data.length > 0) {
+          allData = data;
+          showRabbis();
+          refreshInBackground();
+          return;
+        }
+      }
+    } catch(e) {}
   }
 
-  // 2. lessons.json from CDN (fast, ~100ms)
+  // 3. Fallback: fetch live from Apps Script
   setView('loading');
   try {
-    const url = forceRefresh ? (STATIC_JSON + '?t=' + Date.now()) : STATIC_JSON;
-    const res = await fetch(url);
-    if (res.ok) {
-      const data = parseAndFilter(await res.json());
-      if (data.length > 0) {
-        allData = data;
-        saveToCache(data);
-        showRabbis();
-        return;
-      }
+    allData = await fetchFromNetwork();
+    if (allData.length === 0) throw new Error('לא נמצאו שיעורים. ודא שהקבצים הועברו לתיקיות בדרייב.');
+    showRabbis();
+  } catch (e) {
+    // If network fails on force-refresh, fall back to last known cache
+    if (forceRefresh) {
+      try {
+        const raw = localStorage.getItem(DATA_CACHE_KEY);
+        if (raw) {
+          const { data } = JSON.parse(raw);
+          if (data && data.length > 0) {
+            allData = data;
+            showRabbis();
+            showToast('⚠️ שגיאת רשת — מציג נתונים שמורים');
+            return;
+          }
+        }
+      } catch(_) {}
     }
-  } catch(_) {}
-
-  // 3. Fall back to stale cache if available
-  try {
-    const raw = localStorage.getItem(DATA_CACHE_KEY);
-    if (raw) {
-      const { data } = JSON.parse(raw);
-      if (data && data.length > 0) {
-        allData = data;
-        showRabbis();
-        showToast('⚠️ מציג נתונים שמורים — לחץ סנכרן לעדכון');
-        return;
-      }
-    }
-  } catch(_) {}
-
-  // 4. No data at all
-  document.getElementById('errorMsg').textContent =
-    'לא נמצאו שיעורים. המנהל צריך ללחוץ על ⚙️ → "סנכרן שיעורים" פעם אחת.';
-  setView('error');
-}
-
-// ─── Admin sync: Apps Script → GitHub → cache ─────────────────────────────────
-async function adminSync() {
-  const btn       = document.getElementById('syncBtn');
-  const status    = document.getElementById('syncStatus');
-  const ghToken   = localStorage.getItem('gh_token') || '';
-  btn.disabled    = true;
-  btn.textContent = '⏳ שואב מ-Drive...';
-  status.textContent = '';
-
-  try {
-    // Step 1: fetch from Apps Script
-    const res = await fetch(SCRIPT_URL);
-    if (!res.ok) throw new Error(`שגיאת Apps Script: ${res.status}`);
-    const raw  = await res.json();
-    if (raw.error) throw new Error(raw.error);
-    const data = parseAndFilter(raw);
-    if (data.length === 0) throw new Error('לא נמצאו שיעורים בתיקיות');
-
-    const total = data.reduce((n, r) => n + r.series.reduce((m, s) => m + s.files.length, 0), 0);
-
-    // Step 2: update local cache immediately
-    saveToCache(data);
-    allData = data;
-    if (['rabbis','error','loading','empty'].includes(view)) showRabbis();
-
-    // Step 3: push to GitHub if token set
-    if (ghToken) {
-      btn.textContent = '⏳ מעלה ל-GitHub...';
-      await pushLessonsToGitHub(ghToken, JSON.stringify(data, null, 2));
-      status.textContent = `✅ הועלה בהצלחה! ${total} שיעורים — Netlify יתעדכן תוך ~60 שניות`;
-      status.style.color = 'var(--green)';
-    } else {
-      status.textContent = `✅ עודכן מקומית (${total} שיעורים). הגדר GitHub Token לסנכרון מלא.`;
-      status.style.color = 'var(--green)';
-    }
-  } catch(e) {
-    status.textContent = '❌ ' + e.message;
-    status.style.color = 'var(--red)';
-  } finally {
-    btn.textContent = '🔄 סנכרן שיעורים';
-    btn.disabled    = false;
+    document.getElementById('errorMsg').textContent =
+      e.message.includes('Failed to fetch')
+        ? 'לא ניתן להתחבר לשרת. בדוק חיבור אינטרנט, או שנסה לנקות הרחבות דפדפן (Ad Blocker וכד׳).'
+        : e.message;
+    setView('error');
   }
 }
 
-// ─── Push lessons.json to GitHub via API ──────────────────────────────────────
-async function pushLessonsToGitHub(token, content) {
-  const API = `https://api.github.com/repos/${GITHUB_REPO}/contents/lessons.json`;
-  const headers = {
-    Authorization: `token ${token}`,
-    'Content-Type': 'application/json',
-    Accept: 'application/vnd.github.v3+json'
-  };
-
-  // Get existing file SHA (required for update)
-  let sha = '';
-  try {
-    const r = await fetch(API, { headers });
-    if (r.ok) sha = (await r.json()).sha;
-  } catch(_) {}
-
-  // Encode Hebrew content to base64
-  const encoded = btoa(unescape(encodeURIComponent(content)));
-  const body    = { message: 'sync: עדכון שיעורים', content: encoded };
-  if (sha) body.sha = sha;
-
-  const r = await fetch(API, { method: 'PUT', headers, body: JSON.stringify(body) });
-  if (!r.ok) {
-    const err = await r.json().catch(() => ({}));
-    throw new Error('GitHub: ' + (err.message || r.status));
-  }
+function refreshInBackground() {
+  fetchFromNetwork().then(fresh => {
+    allData = fresh;
+    if (view === 'rabbis') renderRabbis();
+  }).catch(() => {});
 }
 
 // ─── View manager ─────────────────────────────────────────────────────────────
@@ -595,14 +541,8 @@ document.getElementById('bcHome').addEventListener('click', showRabbis);
 document.getElementById('bcRabbi').addEventListener('click', () => {
   if (currentRabbi) showSeries(currentRabbi);
 });
-document.getElementById('reloadBtn').addEventListener('click', () => {
-  localStorage.removeItem(DATA_CACHE_KEY);
-  fetchData(true);
-});
-document.getElementById('reloadOnError').addEventListener('click', () => {
-  localStorage.removeItem(DATA_CACHE_KEY);
-  fetchData(true);
-});
+document.getElementById('reloadBtn').addEventListener('click', () => fetchData(true));
+document.getElementById('reloadOnError').addEventListener('click', () => fetchData(true));
 
 // ─── Global search ────────────────────────────────────────────────────────────
 function renderGlobalSearch() {
@@ -930,8 +870,6 @@ const scriptUrlInput = document.getElementById('scriptUrlInput');
 document.getElementById('settingsBtn').addEventListener('click', () => {
   checkAdmin(() => {
     scriptUrlInput.value = SCRIPT_URL;
-    document.getElementById('ghTokenInput').value = localStorage.getItem('gh_token') || '';
-    document.getElementById('syncStatus').textContent = '';
     settingsModal.style.display = 'flex';
   });
 });
@@ -943,18 +881,17 @@ settingsModal.addEventListener('click', e => {
 });
 document.getElementById('settingsSave').addEventListener('click', () => {
   const url = scriptUrlInput.value.trim();
-  if (url && !url.startsWith('https://script.google.com/')) {
-    showToast('⚠️ קישור Apps Script לא תקין');
+  if (!url.startsWith('https://script.google.com/')) {
+    showToast('⚠️ קישור לא תקין — חייב להתחיל ב-script.google.com');
     return;
   }
-  if (url) { localStorage.setItem('script_url', url); SCRIPT_URL = url; }
-  const tok = document.getElementById('ghTokenInput').value.trim();
-  if (tok)  localStorage.setItem('gh_token', tok);
-  else      localStorage.removeItem('gh_token');
+  localStorage.setItem('script_url', url);
+  localStorage.removeItem(DATA_CACHE_KEY);
+  SCRIPT_URL = url;
   settingsModal.style.display = 'none';
-  showToast('✅ ההגדרות נשמרו');
+  showToast('✅ נשמר — טוען נתונים...');
+  fetchData(true);
 });
-document.getElementById('syncBtn').addEventListener('click', adminSync);
 
 // ─── Logo → home ─────────────────────────────────────────────────────────────
 document.getElementById('logoArea').addEventListener('click', showRabbis);

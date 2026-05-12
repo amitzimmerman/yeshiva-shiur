@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "shiur",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["http-server", ".", "--cors"],
+      "port": 8080,
+      "autoPort": true
+    }
+  ]
+}
