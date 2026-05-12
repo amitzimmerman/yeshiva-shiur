@@ -895,16 +895,43 @@ settingsModal.addEventListener('click', e => {
 });
 document.getElementById('settingsSave').addEventListener('click', () => {
   const url = scriptUrlInput.value.trim();
-  if (!url.startsWith('https://script.google.com/')) {
+  if (url && !url.startsWith('https://script.google.com/')) {
     showToast('⚠️ קישור לא תקין — חייב להתחיל ב-script.google.com');
     return;
   }
-  localStorage.setItem('script_url', url);
-  localStorage.removeItem(DATA_CACHE_KEY);
-  SCRIPT_URL = url;
+  if (url) { localStorage.setItem('script_url', url); SCRIPT_URL = url; }
   settingsModal.style.display = 'none';
-  showToast('✅ נשמר — טוען נתונים...');
-  fetchData(true);
+  showToast('✅ ההגדרות נשמרו');
+});
+
+// ─── Admin: sync from Drive ───────────────────────────────────────────────────
+document.getElementById('syncDriveBtn').addEventListener('click', async () => {
+  const btn    = document.getElementById('syncDriveBtn');
+  const status = document.getElementById('syncStatus');
+  btn.disabled    = true;
+  btn.textContent = '⏳ טוען מ-Drive...';
+  status.textContent = '';
+  status.style.color = '';
+  try {
+    const res = await fetch(SCRIPT_URL);
+    if (!res.ok) throw new Error('שגיאת שרת ' + res.status);
+    const raw  = await res.json();
+    if (raw.error) throw new Error(raw.error);
+    const data = parseAndFilter(raw);
+    if (data.length === 0) throw new Error('לא נמצאו שיעורים');
+    localStorage.setItem(DATA_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
+    allData = data;
+    const total = data.reduce((n, r) => n + r.series.reduce((m, s) => m + s.files.length, 0), 0);
+    status.textContent = '✅ עודכן! ' + total + ' שיעורים נטענו';
+    status.style.color = 'var(--green)';
+    if (['rabbis','error','loading','empty'].includes(view)) showRabbis();
+  } catch(e) {
+    status.textContent = '❌ ' + e.message;
+    status.style.color = 'var(--red)';
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '🔄 רענן שיעורים מ-Drive';
+  }
 });
 
 // ─── Logo → home ─────────────────────────────────────────────────────────────

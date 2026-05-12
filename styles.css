@@ -709,6 +709,14 @@ a { color: inherit; text-decoration: none; }
 .settings-input:focus { border-color: var(--navy); }
 .settings-note { font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
 .settings-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.3rem; }
+.btn-sync {
+  padding: 0.55rem 1.1rem; background: var(--green); color: #fff;
+  border: none; border-radius: 8px; font-size: 0.88rem; font-weight: 700;
+  cursor: pointer; font-family: inherit; transition: background 0.18s;
+}
+.btn-sync:hover    { background: #1e9149; }
+.btn-sync:disabled { opacity: 0.6; cursor: wait; }
+.settings-sync-status { font-size: 0.82rem; font-weight: 600; min-height: 1.1em; }
 .btn-settings-save {
   padding: 0.55rem 1.2rem; background: var(--navy); color: #fff;
   border: none; border-radius: 8px; font-size: 0.88rem; font-weight: 700;
