@@ -358,9 +358,15 @@ function playFile(f, list, context) {
   openPlayerPage(f);
 }
 
+function audioSrc(id) {
+  return `https://drive.google.com/uc?export=download&id=${id}`;
+}
+
 function openPlayerPage(f) {
-  const page = document.getElementById('playerPage');
-  document.getElementById('ppFrame').src = `https://drive.google.com/file/d/${f.id}/preview`;
+  const page  = document.getElementById('playerPage');
+  const audio = document.getElementById('ppAudio');
+  audio.src = audioSrc(f.id);
+  audio.play().catch(() => {});
   document.getElementById('ppTitle').textContent = cleanName(f.name);
 
   const crumbParts = [];
@@ -427,9 +433,19 @@ function updatePlayerPage(f) {
 }
 
 document.getElementById('ppClose').addEventListener('click', () => {
+  const audio = document.getElementById('ppAudio');
+  audio.pause(); audio.src = '';
   document.getElementById('playerPage').style.display = 'none';
-  document.getElementById('ppFrame').src = '';
   playingId = null;
+});
+
+// Auto-advance to next shiur when audio ends
+document.getElementById('ppAudio').addEventListener('ended', () => {
+  const idx = playList.findIndex(f => f.id === playingId);
+  if (idx >= 0 && idx < playList.length - 1) {
+    playingId = playList[idx + 1].id;
+    openPlayerPage(playList[idx + 1]);
+  }
 });
 
 // ─── Download all ─────────────────────────────────────────────────────────────

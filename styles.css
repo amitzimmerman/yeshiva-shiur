@@ -410,9 +410,16 @@ a { color: inherit; text-decoration: none; }
   max-width: 860px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem;
   display: flex; flex-direction: column; gap: 1.2rem; width: 100%;
 }
-.pp-frame {
-  width: 100%; height: 120px; border: none; border-radius: 12px;
-  box-shadow: var(--shadow-lg); background: #000;
+.pp-audio {
+  width: 100%; border-radius: 12px;
+  box-shadow: var(--shadow-lg); display: block;
+  background: var(--navy-dark);
+}
+
+/* Fixed header on mobile so back button always visible */
+@media (max-width: 768px) {
+  .pp-header { position: fixed; top: 0; left: 0; right: 0; }
+  .pp-body   { padding-top: 4.5rem; }
 }
 .pp-meta {
   background: var(--card-bg); border-radius: var(--radius);
