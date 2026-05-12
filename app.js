@@ -1,4 +1,5 @@
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby8K6TtVOJ9Pv2BKqc4CXb_ysTjcqvYTZ3XETaVhubgBjWBTpE2Un_s4LGZrNx0V2bDXQ/exec';
+const SCRIPT_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbx_SKDgy53zJy0ekpq6w8LtMIwJrwZq2Jsnba6FUgL5-FBQtrKzBiizDKNWE5rIM_tauw/exec';
+let SCRIPT_URL = localStorage.getItem('script_url') || SCRIPT_URL_DEFAULT;
 
 // ─── Marks ────────────────────────────────────────────────────────────────────
 let liked   = new Set(JSON.parse(localStorage.getItem('liked')   || '[]'));
@@ -599,6 +600,34 @@ document.querySelectorAll('.qf-btn').forEach(btn => {
     btn.classList.add('active');
     renderShiurim();
   });
+});
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+const settingsModal  = document.getElementById('settingsModal');
+const scriptUrlInput = document.getElementById('scriptUrlInput');
+
+document.getElementById('settingsBtn').addEventListener('click', () => {
+  scriptUrlInput.value = SCRIPT_URL;
+  settingsModal.style.display = 'flex';
+});
+document.getElementById('settingsCancel').addEventListener('click', () => {
+  settingsModal.style.display = 'none';
+});
+settingsModal.addEventListener('click', e => {
+  if (e.target === settingsModal) settingsModal.style.display = 'none';
+});
+document.getElementById('settingsSave').addEventListener('click', () => {
+  const url = scriptUrlInput.value.trim();
+  if (!url.startsWith('https://script.google.com/')) {
+    showToast('⚠️ קישור לא תקין — חייב להתחיל ב-script.google.com');
+    return;
+  }
+  localStorage.setItem('script_url', url);
+  localStorage.removeItem(DATA_CACHE_KEY);
+  SCRIPT_URL = url;
+  settingsModal.style.display = 'none';
+  showToast('✅ נשמר — טוען נתונים...');
+  fetchData(true);
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
