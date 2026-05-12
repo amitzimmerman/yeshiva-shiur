@@ -780,7 +780,111 @@ document.getElementById('mobileBackBtn').addEventListener('click', () => {
 });
 
 // ─── About page ───────────────────────────────────────────────────────────────
+const ABOUT_DEFAULTS = {
+  title:   'ישיבת דרור חירן',
+  p1:      'ישיבת דרור חירן היא ישיבה תיכונית המשלבת תורה ועבודה, ערכים יהודיים ואהבת הארץ.',
+  p2:      'האתר מרכז שיעורי תורה מרבני הישיבה להאזנה ולהורדה חינם, לתלמידים ולבוגרים כאחד.',
+  contact: 'לפרטים נוספים ויצירת קשר — פנו לישיבה ישירות.',
+  location: ''
+};
+
+function esc(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function getAboutContent() {
+  try {
+    const raw = localStorage.getItem('about_content');
+    if (raw) return Object.assign({}, ABOUT_DEFAULTS, JSON.parse(raw));
+  } catch(e) {}
+  return Object.assign({}, ABOUT_DEFAULTS);
+}
+
+function renderAboutPage(editing) {
+  const data = getAboutContent();
+  const container = document.getElementById('aboutContent');
+
+  if (editing) {
+    container.innerHTML = `
+      <div class="about-logo-wrap"><img src="dror-logo.png" class="about-logo" alt="לוגו" /></div>
+      <div class="about-edit-group">
+        <label class="about-edit-label">שם</label>
+        <input  id="aEditTitle"    class="about-edit-input about-edit-title-input" placeholder="שם הישיבה" />
+      </div>
+      <div class="about-edit-group">
+        <label class="about-edit-label">פסקה 1</label>
+        <textarea id="aEditP1" class="about-edit-textarea" rows="3"></textarea>
+      </div>
+      <div class="about-edit-group">
+        <label class="about-edit-label">פסקה 2</label>
+        <textarea id="aEditP2" class="about-edit-textarea" rows="3"></textarea>
+      </div>
+      <div class="about-edit-group">
+        <label class="about-edit-label">יצירת קשר</label>
+        <textarea id="aEditContact" class="about-edit-textarea" rows="2"></textarea>
+      </div>
+      <div class="about-edit-group">
+        <label class="about-edit-label">📍 מיקום / כתובת</label>
+        <input id="aEditLocation" class="about-edit-input" placeholder="לדוגמה: חירן, ישראל" />
+        <span class="about-edit-hint">הכתובת תוצג כמפה בתחתית הדף</span>
+      </div>
+      <div class="about-edit-actions">
+        <button id="aEditSave"   class="about-save-btn">💾 שמור</button>
+        <button id="aEditCancel" class="about-cancel-btn">ביטול</button>
+      </div>
+    `;
+    // Set values after render (avoids HTML-escape issues)
+    document.getElementById('aEditTitle').value    = data.title;
+    document.getElementById('aEditP1').value       = data.p1;
+    document.getElementById('aEditP2').value       = data.p2;
+    document.getElementById('aEditContact').value  = data.contact;
+    document.getElementById('aEditLocation').value = data.location;
+
+    document.getElementById('aEditSave').addEventListener('click', () => {
+      const saved = {
+        title:    document.getElementById('aEditTitle').value.trim()    || ABOUT_DEFAULTS.title,
+        p1:       document.getElementById('aEditP1').value.trim(),
+        p2:       document.getElementById('aEditP2').value.trim(),
+        contact:  document.getElementById('aEditContact').value.trim(),
+        location: document.getElementById('aEditLocation').value.trim()
+      };
+      localStorage.setItem('about_content', JSON.stringify(saved));
+      showToast('✅ נשמר בהצלחה');
+      renderAboutPage(false);
+    });
+    document.getElementById('aEditCancel').addEventListener('click', () => renderAboutPage(false));
+
+  } else {
+    // View mode
+    const mapHtml = data.location ? `
+      <div class="about-map-wrap">
+        <iframe class="about-map-frame"
+          src="https://maps.google.com/maps?q=${encodeURIComponent(data.location)}&output=embed&hl=he&z=15"
+          frameborder="0" allowfullscreen loading="lazy"></iframe>
+      </div>` : '';
+
+    container.innerHTML = `
+      <div class="about-logo-wrap"><img src="dror-logo.png" class="about-logo" alt="לוגו" /></div>
+      <h1 class="about-title">${esc(data.title)}</h1>
+      <div class="about-content">
+        ${data.p1      ? `<p>${esc(data.p1)}</p>`                                      : ''}
+        ${data.p2      ? `<p>${esc(data.p2)}</p>`                                      : ''}
+        ${data.contact ? `<hr class="about-divider"/><p class="about-contact">${esc(data.contact)}</p>` : ''}
+      </div>
+      ${data.location ? `
+      <div class="about-location-section">
+        <div class="about-section-title">📍 מיקום</div>
+        <p class="about-location-text">${esc(data.location)}</p>
+        ${mapHtml}
+      </div>` : ''}
+      <button id="aboutEditBtn" class="about-edit-btn">✏️ ערוך</button>
+    `;
+    document.getElementById('aboutEditBtn').addEventListener('click', () => renderAboutPage(true));
+  }
+}
+
 document.getElementById('aboutBtn').addEventListener('click', () => {
+  renderAboutPage(false);
   document.getElementById('aboutPage').style.display = 'flex';
 });
 document.getElementById('aboutClose').addEventListener('click', () => {
