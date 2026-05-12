@@ -30,14 +30,49 @@ function showToast(msg) {
 }
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
-async function fetchData() {
+const DATA_CACHE_KEY = 'shiurim_cache_v1';
+const CACHE_TTL = 30 * 60 * 1000; // 30 min
+
+function parseAndFilter(data) {
+  if (!Array.isArray(data)) throw new Error('תגובה לא תקינה');
+  return data.filter(r => r.series && r.series.some(s => s.files && s.files.length > 0));
+}
+
+async function fetchFromNetwork() {
+  const res = await fetch(SCRIPT_URL);
+  if (!res.ok) throw new Error(`שגיאת שרת ${res.status}`);
+  const data = parseAndFilter(await res.json());
+  localStorage.setItem(DATA_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
+  return data;
+}
+
+async function fetchData(forceRefresh = false) {
+  // Try cache first
+  if (!forceRefresh) {
+    try {
+      const raw = localStorage.getItem(DATA_CACHE_KEY);
+      if (raw) {
+        const { ts, data } = JSON.parse(raw);
+        if (data && data.length > 0) {
+          allData = data;
+          showRabbis();
+          // Refresh in background if cache is stale
+          if (Date.now() - ts > CACHE_TTL) {
+            fetchFromNetwork().then(fresh => {
+              allData = fresh;
+              if (view === 'rabbis') renderRabbis();
+            }).catch(() => {});
+          }
+          return;
+        }
+      }
+    } catch(e) {}
+  }
+
+  // No cache — show loading and fetch
   setView('loading');
   try {
-    const res  = await fetch(SCRIPT_URL);
-    if (!res.ok) throw new Error(`שגיאת שרת ${res.status}`);
-    const data = await res.json();
-    if (!Array.isArray(data)) throw new Error('תגובה לא תקינה');
-    allData = data.filter(r => r.series && r.series.some(s => s.files && s.files.length > 0));
+    allData = await fetchFromNetwork();
     if (allData.length === 0) throw new Error('לא נמצאו שיעורים. ודא שהקבצים הועברו לתיקיות בדרייב.');
     showRabbis();
   } catch (e) {
@@ -319,8 +354,8 @@ document.getElementById('bcHome').addEventListener('click', showRabbis);
 document.getElementById('bcRabbi').addEventListener('click', () => {
   if (currentRabbi) showSeries(currentRabbi);
 });
-document.getElementById('reloadBtn').addEventListener('click', fetchData);
-document.getElementById('reloadOnError').addEventListener('click', fetchData);
+document.getElementById('reloadBtn').addEventListener('click', () => fetchData(true));
+document.getElementById('reloadOnError').addEventListener('click', () => fetchData(true));
 
 // ─── Global search ────────────────────────────────────────────────────────────
 function renderGlobalSearch() {
