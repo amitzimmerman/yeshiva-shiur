@@ -18,6 +18,7 @@ let activeFilter  = 'all';
 let searchQuery   = '';
 let sortBy        = 'name';
 let playingId     = null;
+let playList      = [];   // ordered list of files currently navigable
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 let toastTimer;
@@ -307,7 +308,7 @@ function renderShiurim() {
 
     const btnPlay = clone.querySelector('.btn-play');
     if (playingId === f.id) { btnPlay.textContent = '⏸ מושמע'; btnPlay.classList.add('playing'); }
-    btnPlay.addEventListener('click', () => playFile(f));
+    btnPlay.addEventListener('click', () => playFile(f, filtered));
 
     const btnWa = clone.querySelector('.btn-wa');
     const waText = encodeURIComponent(`${cleanName(f.name)}\n${dlUrl(f.id)}`);
@@ -348,20 +349,40 @@ function cleanName(f) { return f.replace(/\.[^/.]+$/, ''); }
 function dlUrl(id)    { return `https://drive.google.com/uc?export=download&id=${id}`; }
 
 // ─── Player ───────────────────────────────────────────────────────────────────
-function playFile(f) {
+function playFile(f, list) {
   if (playingId === f.id) return;
+  if (list) playList = list;
   playingId = f.id;
   document.getElementById('drivePlayer').src = `https://drive.google.com/file/d/${f.id}/preview`;
   document.getElementById('playerTitle').textContent = cleanName(f.name);
   document.getElementById('playerBar').style.display = 'flex';
-  renderShiurim();
+  updatePlayerNav();
+  if (view === 'shiurim') renderShiurim();
+  else if (view === 'search') renderGlobalSearch();
+}
+
+function updatePlayerNav() {
+  const idx = playList.findIndex(f => f.id === playingId);
+  document.getElementById('playerPrev').disabled = idx <= 0;
+  document.getElementById('playerNext').disabled = idx < 0 || idx >= playList.length - 1;
 }
 
 document.getElementById('playerClose').addEventListener('click', () => {
   document.getElementById('drivePlayer').src = '';
   document.getElementById('playerBar').style.display = 'none';
-  playingId = null;
+  playingId = null; playList = [];
   if (view === 'shiurim') renderShiurim();
+  else if (view === 'search') renderGlobalSearch();
+});
+
+document.getElementById('playerPrev').addEventListener('click', () => {
+  const idx = playList.findIndex(f => f.id === playingId);
+  if (idx > 0) playFile(playList[idx - 1]);
+});
+
+document.getElementById('playerNext').addEventListener('click', () => {
+  const idx = playList.findIndex(f => f.id === playingId);
+  if (idx >= 0 && idx < playList.length - 1) playFile(playList[idx + 1]);
 });
 
 // ─── Navigation events ────────────────────────────────────────────────────────
@@ -411,7 +432,7 @@ function renderGlobalSearch() {
 
     const btnPlay = clone.querySelector('.btn-play');
     if (playingId === f.id) { btnPlay.textContent = '⏸ מושמע'; btnPlay.classList.add('playing'); }
-    btnPlay.addEventListener('click', () => playFile(f));
+    btnPlay.addEventListener('click', () => playFile(f, results.map(r => r.f)));
 
     const btnDl = clone.querySelector('.btn-dl');
     btnDl.href = dlUrl(f.id);
