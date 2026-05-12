@@ -1,4 +1,4 @@
-const CACHE = 'dror-v3';
+const CACHE = 'dror-v4';
 const SHELL = ['/', '/index.html', '/styles.css', '/app.js', '/data.json', '/dror-logo.png'];
 
 self.addEventListener('install', e => {

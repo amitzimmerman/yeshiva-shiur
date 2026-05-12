@@ -77,6 +77,7 @@ let currentRabbi  = null;
 let currentSeries = null;
 let activeFilter  = 'all';
 let searchQuery   = '';
+let searchScope   = 'all'; // 'all' | 'rabbis' | 'series'
 let sortBy        = 'name';
 let playingId     = null;
 let playList      = [];   // ordered list of files currently navigable
@@ -88,12 +89,12 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 5000);
 }
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 const DATA_CACHE_KEY = 'shiurim_cache_v1';
-const CACHE_TTL = 30 * 60 * 1000; // 30 min
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 function parseAndFilter(data) {
   if (!Array.isArray(data)) throw new Error('תגובה לא תקינה');
@@ -626,6 +627,54 @@ function setPathBreadcrumb(el, rabbi, series) {
   el.append(r, sep, s);
 }
 
+// ─── Series search (cross-rabbi) ─────────────────────────────────────────────
+function renderSeriesSearch() {
+  const q = searchQuery.toLowerCase();
+  const results = [];
+  allData.forEach(rabbi => {
+    rabbi.series.forEach(series => {
+      if (series.files && series.files.length > 0 &&
+          series.name.toLowerCase().includes(q)) {
+        results.push({ rabbi, series });
+      }
+    });
+  });
+
+  if (results.length === 0) {
+    document.getElementById('emptyMsg').textContent = 'לא נמצאו סדרות';
+    setView('empty'); return;
+  }
+
+  setView('series');
+  const grid = document.getElementById('seriesGrid');
+  grid.innerHTML = '';
+
+  results.forEach(({ rabbi, series }) => {
+    const total   = series.files.length;
+    const doneNum = series.files.filter(f => watched.has(f.id)).length;
+    const pct     = total ? Math.round((doneNum / total) * 100) : 0;
+    const initial = series.name.charAt(0) || '?';
+
+    const card = document.createElement('div');
+    card.className = 'grid-card';
+    card.innerHTML = `
+      <div class="grid-card-cover grid-card-cover--series">
+        <div class="grid-card-avatar">${initial}</div>
+      </div>
+      <div class="grid-card-body">
+        <div class="series-search-rabbi">${rabbi.name}</div>
+        <div class="grid-card-name">${series.name}</div>
+        <div class="grid-card-meta">
+          <strong>${total}</strong> שיעורים
+          ${doneNum ? `· <span style="color:var(--green)">✅ ${doneNum}</span>` : ''}
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      </div>`;
+    card.addEventListener('click', () => { currentRabbi = rabbi; showShiurim(series); });
+    grid.appendChild(card);
+  });
+}
+
 // ─── Favorites ───────────────────────────────────────────────────────────────
 function renderFavorites() {
   const results = [];
@@ -763,15 +812,34 @@ document.getElementById('downloadsBtn').addEventListener('click', () => {
 });
 
 // ─── Search ───────────────────────────────────────────────────────────────────
-document.getElementById('searchInput').addEventListener('input', e => {
-  searchQuery = e.target.value;
-  if (searchQuery.trim()) {
-    renderGlobalSearch();
-  } else {
+function runSearch() {
+  if (!searchQuery.trim()) {
     if (currentSeries)     renderShiurim();
     else if (currentRabbi) renderSeries();
     else                   renderRabbis();
+    return;
   }
+  if (searchScope === 'rabbis') {
+    currentRabbi = null; currentSeries = null;
+    renderRabbis();          // renderRabbis already filters by searchQuery
+  } else if (searchScope === 'series') {
+    renderSeriesSearch();
+  } else {
+    renderGlobalSearch();    // search shiurim names
+  }
+}
+
+document.getElementById('searchInput').addEventListener('input', e => {
+  searchQuery = e.target.value;
+  runSearch();
+});
+
+document.getElementById('searchScope').addEventListener('change', e => {
+  searchScope = e.target.value;
+  // Update placeholder
+  const ph = { all: 'חיפוש שיעור...', rabbis: 'חיפוש רב...', series: 'חיפוש סדרה...' };
+  document.getElementById('searchInput').placeholder = ph[searchScope] || 'חיפוש...';
+  if (searchQuery.trim()) runSearch();
 });
 
 // ─── Shiurim controls ─────────────────────────────────────────────────────────

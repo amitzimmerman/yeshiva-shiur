@@ -111,7 +111,27 @@ a { color: inherit; text-decoration: none; }
   flex-wrap: wrap;
 }
 .search-wrap { display: flex; flex: 1; min-width: 180px; }
+
+/* Search scope select */
+.search-scope-select {
+  padding: 0.5rem 0.5rem;
+  background: var(--navy-dark);
+  color: var(--gold);
+  border: none;
+  border-radius: var(--radius) 0 0 var(--radius);
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  direction: rtl;
+  flex-shrink: 0;
+  outline: none;
+  border-left: 1px solid rgba(255,255,255,0.15);
+}
+.search-scope-select option { background: var(--navy-dark); color: #fff; }
+
 .search-wrap input {
+  border-radius: 0 !important;
   flex: 1;
   padding: 0.5rem 0.85rem;
   border: none;
@@ -121,6 +141,15 @@ a { color: inherit; text-decoration: none; }
   direction: rtl;
 }
 .search-wrap input:focus { outline: none; }
+
+/* Loading sub-text */
+.loading-sub { font-size: 0.82rem; color: var(--muted); margin-top: -0.5rem; }
+
+/* Series search rabbi label */
+.series-search-rabbi {
+  font-size: 0.74rem; font-weight: 700;
+  color: var(--gold); margin-bottom: -0.1rem;
+}
 .search-btn {
   padding: 0.5rem 0.85rem;
   background: var(--gold);
@@ -695,15 +724,17 @@ a { color: inherit; text-decoration: none; }
 
 /* ══ Toast ══ */
 .toast {
-  position: fixed; bottom: 82px; left: 50%;
-  transform: translateX(-50%) translateY(60px);
+  position: fixed; top: 72px; left: 50%;
+  transform: translateX(-50%) translateY(-16px);
+  opacity: 0;
   background: var(--navy-dark); color: #fff;
-  padding: 0.6rem 1.5rem; border-radius: 24px;
-  font-size: 0.9rem; font-weight: 600; transition: transform 0.3s;
+  padding: 0.55rem 1.4rem; border-radius: 24px;
+  font-size: 0.9rem; font-weight: 600;
+  transition: transform 0.28s ease, opacity 0.28s ease;
   z-index: 999; white-space: nowrap; pointer-events: none;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3); border-top: 2px solid var(--gold);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.35); border-bottom: 2px solid var(--gold);
 }
-.toast.show { transform: translateX(-50%) translateY(0); }
+.toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
 
 .grid-card-cover--series {
   background: linear-gradient(145deg, #2d5a8e, #1b2d4f);

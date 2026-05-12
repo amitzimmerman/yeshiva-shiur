@@ -85,6 +85,11 @@
 <div class="filter-bar">
   <div class="filter-bar-inner">
     <div class="search-wrap">
+      <select id="searchScope" class="search-scope-select">
+        <option value="all">שיעור</option>
+        <option value="rabbis">רב</option>
+        <option value="series">סדרה</option>
+      </select>
       <input id="searchInput" type="text" placeholder="חיפוש..." />
       <button class="search-btn">🔍</button>
     </div>
@@ -122,7 +127,8 @@
   <!-- Loading -->
   <div class="loading-state" id="loadingState">
     <div class="spinner"></div>
-    <p>טוען מ-Google Drive...</p>
+    <p id="loadingMsg">טוען שיעורים...</p>
+    <p class="loading-sub">הטעינה הראשונה לוקחת כ-10 שניות</p>
   </div>
 
   <!-- Error -->
