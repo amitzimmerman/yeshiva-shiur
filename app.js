@@ -318,9 +318,7 @@ function renderShiurim() {
     const btnDl = clone.querySelector('.btn-dl');
     btnDl.href = dlUrl(f.id);
     btnDl.addEventListener('click', () => {
-      watched.add(f.id); saveMarks();
-      showToast('⬇️ מתחיל הורדה — סומן כנצפה');
-      setTimeout(renderShiurim, 150);
+      showToast('⬇️ מתחיל הורדה...');
     });
 
     const btnLike = clone.querySelector('.btn-like');
@@ -395,8 +393,6 @@ function openPlayerPage(f) {
   page.style.display = 'flex';
   page.scrollTop = 0;
   updatePlayerPage(f);
-
-  watched.add(f.id); saveMarks();
 }
 
 function updatePlayerPage(f) {
@@ -456,24 +452,16 @@ document.getElementById('ppClose').addEventListener('click', () => {
   playingId = null;
 });
 
-// ─── Download all ─────────────────────────────────────────────────────────────
+// ─── Download all (folder ZIP) ────────────────────────────────────────────────
 document.getElementById('dlAllBtn').addEventListener('click', () => {
-  if (!currentSeries) return;
-  const files = currentSeries.files.filter(f => f.id);
-  if (files.length === 0) return;
-  showToast(`⬇️ מוריד ${files.length} שיעורים...`);
-  files.forEach((f, i) => {
-    setTimeout(() => {
-      const a = document.createElement('a');
-      a.href = dlUrl(f.id);
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      watched.add(f.id);
-    }, i * 700);
-  });
-  setTimeout(() => { saveMarks(); renderShiurim(); }, 300);
+  if (!currentSeries?.id) return;
+  const a = document.createElement('a');
+  a.href = `https://drive.google.com/drive/folders/${currentSeries.id}?usp=sharing`;
+  a.target = '_blank';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  showToast(`⬇️ פותח תיקיית הסדרה בדרייב`);
 });
 
 // ─── Navigation events ────────────────────────────────────────────────────────
@@ -528,9 +516,7 @@ function renderGlobalSearch() {
     const btnDl = clone.querySelector('.btn-dl');
     btnDl.href = dlUrl(f.id);
     btnDl.addEventListener('click', () => {
-      watched.add(f.id); saveMarks();
-      showToast('⬇️ מתחיל הורדה — סומן כנצפה');
-      setTimeout(renderGlobalSearch, 150);
+      showToast('⬇️ מתחיל הורדה...');
     });
 
     const btnWa = clone.querySelector('.btn-wa');
