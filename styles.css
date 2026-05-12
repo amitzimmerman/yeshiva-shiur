@@ -436,6 +436,23 @@ a { color: inherit; text-decoration: none; }
 .pp-like.active  { border-color: var(--red);   background: #fdf1f0; color: var(--red); }
 .pp-watch.active { border-color: var(--green);  background: #eafaf1; color: var(--green); }
 
+.pp-sources {
+  background: var(--card-bg); border-radius: var(--radius);
+  border: 1.5px solid var(--border); overflow: hidden;
+}
+.pp-sources-title {
+  padding: 0.75rem 1.1rem; font-weight: 700; font-size: 0.9rem;
+  color: var(--navy-dark); border-bottom: 1px solid var(--border);
+  background: var(--gold-light);
+}
+.pp-source-frame {
+  width: 100%; height: 600px; border: none; display: block;
+}
+
+@media (max-width: 600px) {
+  .pp-source-frame { height: 400px; }
+}
+
 .pp-nav {
   display: flex; align-items: center; justify-content: space-between;
   gap: 1rem;

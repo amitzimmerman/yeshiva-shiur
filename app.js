@@ -407,6 +407,17 @@ function updatePlayerPage(f) {
     showToast(watched.has(f.id) ? '✅ סומן כנצפה' : '🔵 סומן כלא נצפה');
   };
 
+  // Sources (PDF)
+  const sourcesDiv   = document.getElementById('ppSources');
+  const sourceFrame  = document.getElementById('ppSourceFrame');
+  if (f.sourceId) {
+    sourceFrame.src = `https://drive.google.com/file/d/${f.sourceId}/preview`;
+    sourcesDiv.style.display = 'block';
+  } else {
+    sourcesDiv.style.display = 'none';
+    sourceFrame.src = '';
+  }
+
   document.getElementById('ppPrev').onclick = () => {
     if (idx > 0) { playingId = playList[idx - 1].id; openPlayerPage(playList[idx - 1]); }
   };
