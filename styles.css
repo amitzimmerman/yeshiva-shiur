@@ -382,35 +382,77 @@ a { color: inherit; text-decoration: none; }
 .btn-like.active   { border-color: var(--red);   background: #fdf1f0; }
 .btn-watched.active{ border-color: var(--green);  background: #eafaf1; }
 
-/* ══ Player ══ */
-.player-bar {
-  position: fixed; bottom: 0; left: 0; right: 0;
-  background: var(--navy-dark); border-top: 3px solid var(--gold);
-  padding: 0.6rem 1.5rem; display: flex; align-items: center;
-  gap: 1rem; z-index: 200; box-shadow: 0 -4px 20px rgba(0,0,0,0.35);
+/* ══ Player Page ══ */
+.player-page {
+  position: fixed; inset: 0; z-index: 300;
+  background: var(--bg); overflow-y: auto;
+  display: flex; flex-direction: column;
 }
-.player-close {
-  background: none; border: none; color: rgba(255,255,255,0.55);
-  font-size: 1.1rem; cursor: pointer; flex-shrink: 0;
+.pp-header {
+  background: linear-gradient(135deg, var(--navy-dark), var(--navy));
+  padding: 0.75rem 1.5rem; display: flex; align-items: center;
+  gap: 1rem; position: sticky; top: 0; z-index: 10;
+  box-shadow: 0 3px 16px rgba(0,0,0,0.3);
 }
-.player-close:hover { color: #fff; }
+.pp-close {
+  background: rgba(255,255,255,0.12); border: 1.5px solid rgba(255,255,255,0.2);
+  color: #fff; font-size: 0.88rem; font-weight: 700;
+  padding: 0.35rem 0.85rem; border-radius: 8px;
+  cursor: pointer; font-family: inherit; transition: background 0.18s;
+  white-space: nowrap; flex-shrink: 0;
+}
+.pp-close:hover { background: rgba(255,255,255,0.22); }
+.pp-crumb {
+  font-size: 0.82rem; color: var(--gold); font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pp-body {
+  max-width: 860px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem;
+  display: flex; flex-direction: column; gap: 1.2rem; width: 100%;
+}
+.pp-frame {
+  width: 100%; height: 120px; border: none; border-radius: 12px;
+  box-shadow: var(--shadow-lg); background: #000;
+}
+.pp-meta {
+  background: var(--card-bg); border-radius: var(--radius);
+  border: 1.5px solid var(--border); padding: 1.1rem 1.3rem;
+  display: flex; flex-direction: column; gap: 0.75rem;
+}
+.pp-title {
+  font-size: 1.15rem; font-weight: 800; color: var(--navy-dark);
+  line-height: 1.4; margin: 0;
+}
+.pp-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.pp-action-btn {
+  padding: 0.42rem 1rem; border-radius: 8px; font-size: 0.85rem;
+  font-weight: 700; cursor: pointer; font-family: inherit;
+  transition: background 0.18s; border: 1.5px solid var(--border);
+  background: var(--bg); color: var(--text); white-space: nowrap;
+  display: inline-block;
+}
+.pp-action-btn:hover { background: var(--border); }
+.pp-action-btn.active { border-color: var(--gold); background: var(--gold-light); }
+.pp-like.active  { border-color: var(--red);   background: #fdf1f0; color: var(--red); }
+.pp-watch.active { border-color: var(--green);  background: #eafaf1; color: var(--green); }
 
-.player-nav { display: flex; gap: 0.3rem; flex-shrink: 0; }
-.player-nav-btn {
-  background: rgba(255,255,255,0.1); border: 1.5px solid rgba(255,255,255,0.2);
-  color: #fff; font-size: 1.3rem; line-height: 1;
-  width: 34px; height: 34px; border-radius: 8px;
-  cursor: pointer; transition: background 0.15s;
-  display: flex; align-items: center; justify-content: center;
+.pp-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem;
 }
-.player-nav-btn:hover:not(:disabled) { background: rgba(255,255,255,0.22); }
-.player-nav-btn:disabled { opacity: 0.3; cursor: default; }
-.player-info { min-width: 0; overflow: hidden; }
-.player-title {
-  display: block; font-size: 0.84rem; font-weight: 700; color: #fff;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.pp-nav-btn {
+  padding: 0.6rem 1.4rem; background: var(--navy); color: #fff;
+  border: none; border-radius: 10px; font-size: 0.9rem; font-weight: 700;
+  cursor: pointer; font-family: inherit; transition: background 0.18s;
 }
-#drivePlayer { flex: 1; height: 56px; min-width: 200px; border: none; border-radius: 6px; }
+.pp-nav-btn:hover:not(:disabled) { background: var(--navy-light); }
+.pp-nav-btn:disabled { opacity: 0.3; cursor: default; }
+.pp-counter { font-size: 0.82rem; color: var(--muted); font-weight: 600; }
+
+@media (max-width: 600px) {
+  .pp-body { padding: 1rem 1rem 3rem; }
+  .pp-nav-btn { padding: 0.5rem 0.9rem; font-size: 0.82rem; }
+}
 
 /* ══ Toast ══ */
 .toast {

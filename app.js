@@ -308,7 +308,7 @@ function renderShiurim() {
 
     const btnPlay = clone.querySelector('.btn-play');
     if (playingId === f.id) { btnPlay.textContent = '⏸ מושמע'; btnPlay.classList.add('playing'); }
-    btnPlay.addEventListener('click', () => playFile(f, filtered));
+    btnPlay.addEventListener('click', () => playFile(f, filtered, { rabbi: currentRabbi, series: currentSeries }));
 
     const btnWa = clone.querySelector('.btn-wa');
     const waText = encodeURIComponent(`${cleanName(f.name)}\n${dlUrl(f.id)}`);
@@ -348,41 +348,77 @@ function renderShiurim() {
 function cleanName(f) { return f.replace(/\.[^/.]+$/, ''); }
 function dlUrl(id)    { return `https://drive.google.com/uc?export=download&id=${id}`; }
 
-// ─── Player ───────────────────────────────────────────────────────────────────
-function playFile(f, list) {
-  if (playingId === f.id) return;
+// ─── Player Page ──────────────────────────────────────────────────────────────
+let playerContext = null; // { rabbi, series } when known
+
+function playFile(f, list, context) {
   if (list) playList = list;
+  if (context) playerContext = context;
   playingId = f.id;
-  document.getElementById('drivePlayer').src = `https://drive.google.com/file/d/${f.id}/preview`;
-  document.getElementById('playerTitle').textContent = cleanName(f.name);
-  document.getElementById('playerBar').style.display = 'flex';
-  updatePlayerNav();
-  if (view === 'shiurim') renderShiurim();
-  else if (view === 'search') renderGlobalSearch();
+  openPlayerPage(f);
 }
 
-function updatePlayerNav() {
-  const idx = playList.findIndex(f => f.id === playingId);
-  document.getElementById('playerPrev').disabled = idx <= 0;
-  document.getElementById('playerNext').disabled = idx < 0 || idx >= playList.length - 1;
+function openPlayerPage(f) {
+  const page = document.getElementById('playerPage');
+  document.getElementById('ppFrame').src = `https://drive.google.com/file/d/${f.id}/preview`;
+  document.getElementById('ppTitle').textContent = cleanName(f.name);
+
+  const crumbParts = [];
+  if (playerContext?.rabbi) crumbParts.push(playerContext.rabbi.name);
+  if (playerContext?.series) crumbParts.push(playerContext.series.name);
+  document.getElementById('ppCrumb').textContent = crumbParts.join(' › ');
+
+  page.style.display = 'flex';
+  page.scrollTop = 0;
+  updatePlayerPage(f);
+
+  watched.add(f.id); saveMarks();
 }
 
-document.getElementById('playerClose').addEventListener('click', () => {
-  document.getElementById('drivePlayer').src = '';
-  document.getElementById('playerBar').style.display = 'none';
-  playingId = null; playList = [];
-  if (view === 'shiurim') renderShiurim();
-  else if (view === 'search') renderGlobalSearch();
-});
+function updatePlayerPage(f) {
+  const idx = playList.findIndex(x => x.id === f.id);
 
-document.getElementById('playerPrev').addEventListener('click', () => {
-  const idx = playList.findIndex(f => f.id === playingId);
-  if (idx > 0) playFile(playList[idx - 1]);
-});
+  document.getElementById('ppPrev').disabled = idx <= 0;
+  document.getElementById('ppNext').disabled = idx < 0 || idx >= playList.length - 1;
+  document.getElementById('ppCounter').textContent =
+    playList.length ? `${idx + 1} / ${playList.length}` : '';
 
-document.getElementById('playerNext').addEventListener('click', () => {
-  const idx = playList.findIndex(f => f.id === playingId);
-  if (idx >= 0 && idx < playList.length - 1) playFile(playList[idx + 1]);
+  const dlBtn = document.getElementById('ppDl');
+  dlBtn.href = dlUrl(f.id);
+
+  const waBtn = document.getElementById('ppWa');
+  waBtn.href = `https://wa.me/?text=${encodeURIComponent(`${cleanName(f.name)}\n${dlUrl(f.id)}`)}`;
+
+  const likeBtn = document.getElementById('ppLike');
+  likeBtn.textContent = liked.has(f.id) ? '❤️ אהבתי' : '🤍 אהבתי';
+  likeBtn.classList.toggle('active', liked.has(f.id));
+  likeBtn.onclick = () => {
+    liked.has(f.id) ? liked.delete(f.id) : liked.add(f.id);
+    saveMarks(); updatePlayerPage(f);
+    showToast(liked.has(f.id) ? '❤️ נוסף למועדפים' : '💔 הוסר מהמועדפים');
+  };
+
+  const watchBtn = document.getElementById('ppWatched');
+  watchBtn.textContent = watched.has(f.id) ? '✅ ראיתי' : '☐ ראיתי';
+  watchBtn.classList.toggle('active', watched.has(f.id));
+  watchBtn.onclick = () => {
+    watched.has(f.id) ? watched.delete(f.id) : watched.add(f.id);
+    saveMarks(); updatePlayerPage(f);
+    showToast(watched.has(f.id) ? '✅ סומן כנצפה' : '🔵 סומן כלא נצפה');
+  };
+
+  document.getElementById('ppPrev').onclick = () => {
+    if (idx > 0) { playingId = playList[idx - 1].id; openPlayerPage(playList[idx - 1]); }
+  };
+  document.getElementById('ppNext').onclick = () => {
+    if (idx < playList.length - 1) { playingId = playList[idx + 1].id; openPlayerPage(playList[idx + 1]); }
+  };
+}
+
+document.getElementById('ppClose').addEventListener('click', () => {
+  document.getElementById('playerPage').style.display = 'none';
+  document.getElementById('ppFrame').src = '';
+  playingId = null;
 });
 
 // ─── Download all ─────────────────────────────────────────────────────────────
@@ -452,7 +488,7 @@ function renderGlobalSearch() {
 
     const btnPlay = clone.querySelector('.btn-play');
     if (playingId === f.id) { btnPlay.textContent = '⏸ מושמע'; btnPlay.classList.add('playing'); }
-    btnPlay.addEventListener('click', () => playFile(f, results.map(r => r.f)));
+    btnPlay.addEventListener('click', () => playFile(f, results.map(r => r.f), { rabbi, series }));
 
     const btnDl = clone.querySelector('.btn-dl');
     btnDl.href = dlUrl(f.id);
