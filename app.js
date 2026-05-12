@@ -352,30 +352,6 @@ function cleanName(f) { return f.replace(/\.[^/.]+$/, ''); }
 function dlUrl(id)    { return `https://drive.google.com/uc?export=download&id=${id}`; }
 
 
-// ─── Playback speed ───────────────────────────────────────────────────────────
-let playbackSpeed = parseFloat(localStorage.getItem('playback_speed') || '1');
-
-document.querySelectorAll('.pp-speed-btn').forEach(btn => {
-  const speed = parseFloat(btn.dataset.speed);
-  btn.classList.toggle('active', speed === playbackSpeed);
-  btn.addEventListener('click', () => {
-    playbackSpeed = speed;
-    localStorage.setItem('playback_speed', speed);
-    document.getElementById('ppAudio').playbackRate = speed;
-    document.querySelectorAll('.pp-speed-btn').forEach(b =>
-      b.classList.toggle('active', parseFloat(b.dataset.speed) === speed)
-    );
-  });
-});
-
-// Auto-advance to next shiur when audio ends
-document.getElementById('ppAudio').addEventListener('ended', () => {
-  const idx = playList.findIndex(f => f.id === playingId);
-  if (idx >= 0 && idx < playList.length - 1) {
-    playingId = playList[idx + 1].id;
-    openPlayerPage(playList[idx + 1]);
-  }
-});
 
 // ─── Player Page ──────────────────────────────────────────────────────────────
 let playerContext = null; // { rabbi, series } when known
@@ -388,11 +364,8 @@ function playFile(f, list, context) {
 }
 
 function openPlayerPage(f) {
-  const page  = document.getElementById('playerPage');
-  const audio = document.getElementById('ppAudio');
-  audio.src = `https://drive.google.com/uc?export=download&confirm=t&id=${f.id}`;
-  audio.playbackRate = playbackSpeed;
-  audio.play().catch(() => {});
+  const page = document.getElementById('playerPage');
+  document.getElementById('ppFrame').src = `https://drive.google.com/file/d/${f.id}/preview`;
   document.getElementById('ppTitle').textContent = cleanName(f.name);
 
   const crumbParts = [];
@@ -457,8 +430,7 @@ function updatePlayerPage(f) {
 }
 
 document.getElementById('ppClose').addEventListener('click', () => {
-  const audio = document.getElementById('ppAudio');
-  audio.pause(); audio.src = '';
+  document.getElementById('ppFrame').src = '';
   document.getElementById('playerPage').style.display = 'none';
   playingId = null;
 });
