@@ -375,12 +375,13 @@ function playFile(f, list, context) {
 }
 
 function audioSrc(id) {
-  return `https://drive.google.com/uc?export=open&id=${id}`;
+  return `https://drive.google.com/uc?export=download&confirm=t&id=${id}`;
 }
 
 function openPlayerPage(f) {
   const page  = document.getElementById('playerPage');
   const audio = document.getElementById('ppAudio');
+  audio.onerror = () => showToast('⚠️ שגיאה בטעינת הקובץ — ודא שהקובץ משותף לכולם בדרייב');
   audio.src = audioSrc(f.id);
   audio.playbackRate = playbackSpeed;
   audio.play().catch(() => {});
