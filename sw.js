@@ -1,5 +1,6 @@
-const CACHE = 'dror-v6';
-const SHELL = ['/', '/index.html', '/styles.css', '/app.js', '/data.json', '/dror-logo.png'];
+const CACHE = 'dror-v7';
+// data.json מוחרג מה-SHELL — מתעדכן יומי, יטען דינמית
+const SHELL = ['/', '/index.html', '/styles.css', '/app.js', '/dror-logo.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(

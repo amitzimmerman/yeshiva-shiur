@@ -104,7 +104,7 @@ function showToast(msg) {
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 const DATA_CACHE_KEY = 'shiurim_cache_v1';
-const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 שעות — אחרי זה טוען data.json חדש
 
 function parseAndFilter(data) {
   if (!Array.isArray(data)) throw new Error('תגובה לא תקינה');
@@ -120,71 +120,77 @@ async function fetchFromNetwork() {
 }
 
 async function fetchData(forceRefresh = false) {
+  // ── 1. קאש מהיר (מתחת ל-6 שעות) ──────────────────────────────────────────
   if (!forceRefresh) {
-    // 1. Try localStorage cache (instant)
+    try {
+      const raw = localStorage.getItem(DATA_CACHE_KEY);
+      if (raw) {
+        const { ts, data } = JSON.parse(raw);
+        if (data && data.length > 0) {
+          allData = data;
+          showRabbis();
+          // אם הקאש ישן מ-6 שעות — רענן מ-data.json ברקע
+          if (!ts || Date.now() - ts > CACHE_TTL) refreshFromDataJson();
+          return;
+        }
+      }
+    } catch(_) {}
+  }
+
+  // ── 2. data.json מה-CDN (מתעדכן פעם ביום ע"י GitHub Actions) ─────────────
+  setView('loading');
+  try {
+    const url = 'data.json' + (forceRefresh ? '?t=' + Date.now() : '');
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = parseAndFilter(await res.json());
+      if (data.length > 0) {
+        allData = data;
+        localStorage.setItem(DATA_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
+        showRabbis();
+        return;
+      }
+    }
+  } catch(_) {}
+
+  // ── 3. Apps Script ישיר (גיבוי אם data.json לא קיים עדיין) ──────────────
+  try {
+    allData = await fetchFromNetwork();
+    if (allData.length === 0) throw new Error('לא נמצאו שיעורים');
+    localStorage.setItem(DATA_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: allData }));
+    showRabbis();
+  } catch(e) {
+    // קאש ישן כגיבוי אחרון
     try {
       const raw = localStorage.getItem(DATA_CACHE_KEY);
       if (raw) {
         const { data } = JSON.parse(raw);
         if (data && data.length > 0) {
-          allData = data;
-          showRabbis();
-          // (no background refresh — cache is used as-is)
+          allData = data; showRabbis();
+          showToast('⚠️ מציג נתונים שמורים');
           return;
         }
       }
-    } catch(e) {}
-
-    // 2. Try data.json from same origin (fast CDN, no spinner)
-    try {
-      const res = await fetch('data.json');
-      if (res.ok) {
-        const data = parseAndFilter(await res.json());
-        if (data.length > 0) {
-          allData = data;
-          showRabbis();
-          // (no background refresh — cache is used as-is)
-          return;
-        }
-      }
-    } catch(e) {}
-  }
-
-  // 3. Fallback: fetch live from Apps Script
-  setView('loading');
-  try {
-    allData = await fetchFromNetwork();
-    if (allData.length === 0) throw new Error('לא נמצאו שיעורים. ודא שהקבצים הועברו לתיקיות בדרייב.');
-    showRabbis();
-  } catch (e) {
-    // If network fails on force-refresh, fall back to last known cache
-    if (forceRefresh) {
-      try {
-        const raw = localStorage.getItem(DATA_CACHE_KEY);
-        if (raw) {
-          const { data } = JSON.parse(raw);
-          if (data && data.length > 0) {
-            allData = data;
-            showRabbis();
-            showToast('⚠️ שגיאת רשת — מציג נתונים שמורים');
-            return;
-          }
-        }
-      } catch(_) {}
-    }
+    } catch(_) {}
     document.getElementById('errorMsg').textContent =
-      e.message.includes('Failed to fetch')
-        ? 'לא ניתן להתחבר לשרת. בדוק חיבור אינטרנט, או שנסה לנקות הרחבות דפדפן (Ad Blocker וכד׳).'
-        : e.message;
+      'לא ניתן לטעון שיעורים. בדוק חיבור אינטרנט.';
     setView('error');
   }
 }
 
-function refreshInBackground() {
-  fetchFromNetwork().then(fresh => {
-    allData = fresh;
-    if (view === 'rabbis') renderRabbis();
-  }).catch(() => {});
+// רענון שקט מ-data.json (כשהקאש ישן)
+function refreshFromDataJson() {
+  fetch('data.json?t=' + Date.now())
+    .then(r => r.ok ? r.json() : null)
+    .then(raw => {
+      if (!raw) return;
+      const data = parseAndFilter(raw);
+      if (data.length > 0) {
+        allData = data;
+        localStorage.setItem(DATA_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
+        if (view === 'rabbis') renderRabbis();
+      }
+    }).catch(() => {});
 }
 
 // ─── View manager ─────────────────────────────────────────────────────────────
