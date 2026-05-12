@@ -348,16 +348,24 @@ function cleanName(f) { return f.replace(/\.[^/.]+$/, ''); }
 function dlUrl(id)    { return `https://drive.google.com/uc?export=download&id=${id}`; }
 
 
-// ─── Plyr ─────────────────────────────────────────────────────────────────────
-const plyr = new Plyr('#ppAudio', {
-  speed:    { selected: 1, options: [0.75, 1, 1.25, 1.5, 2] },
-  controls: ['play', 'rewind', 'fast-forward', 'progress',
-             'current-time', 'duration', 'mute', 'volume', 'speed'],
-  i18n:     { speed: 'מהירות', normal: 'רגיל' },
-  invertTime: false
+// ─── Playback speed ───────────────────────────────────────────────────────────
+let playbackSpeed = parseFloat(localStorage.getItem('playback_speed') || '1');
+
+document.querySelectorAll('.pp-speed-btn').forEach(btn => {
+  const speed = parseFloat(btn.dataset.speed);
+  btn.classList.toggle('active', speed === playbackSpeed);
+  btn.addEventListener('click', () => {
+    playbackSpeed = speed;
+    localStorage.setItem('playback_speed', speed);
+    document.getElementById('ppAudio').playbackRate = speed;
+    document.querySelectorAll('.pp-speed-btn').forEach(b =>
+      b.classList.toggle('active', parseFloat(b.dataset.speed) === speed)
+    );
+  });
 });
 
-plyr.on('ended', () => {
+// Auto-advance to next shiur when audio ends
+document.getElementById('ppAudio').addEventListener('ended', () => {
   const idx = playList.findIndex(f => f.id === playingId);
   if (idx >= 0 && idx < playList.length - 1) {
     playingId = playList[idx + 1].id;
@@ -376,13 +384,11 @@ function playFile(f, list, context) {
 }
 
 function openPlayerPage(f) {
-  const page = document.getElementById('playerPage');
-  plyr.source = {
-    type: 'audio',
-    title: cleanName(f.name),
-    sources: [{ src: `https://drive.google.com/uc?export=download&confirm=t&id=${f.id}`, type: 'audio/mpeg' }]
-  };
-  plyr.play();
+  const page  = document.getElementById('playerPage');
+  const audio = document.getElementById('ppAudio');
+  audio.src = `https://drive.google.com/uc?export=download&confirm=t&id=${f.id}`;
+  audio.playbackRate = playbackSpeed;
+  audio.play().catch(() => {});
   document.getElementById('ppTitle').textContent = cleanName(f.name);
 
   const crumbParts = [];
@@ -447,7 +453,8 @@ function updatePlayerPage(f) {
 }
 
 document.getElementById('ppClose').addEventListener('click', () => {
-  plyr.stop();
+  const audio = document.getElementById('ppAudio');
+  audio.pause(); audio.src = '';
   document.getElementById('playerPage').style.display = 'none';
   playingId = null;
 });
