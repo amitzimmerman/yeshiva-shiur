@@ -1,12 +1,34 @@
 const SCRIPT_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbx_SKDgy53zJy0ekpq6w8LtMIwJrwZq2Jsnba6FUgL5-FBQtrKzBiizDKNWE5rIM_tauw/exec';
 let SCRIPT_URL = localStorage.getItem('script_url') || SCRIPT_URL_DEFAULT;
 
+// ─── Password ─────────────────────────────────────────────────────────────────
+(function() {
+  const overlay = document.getElementById('authOverlay');
+  if (localStorage.getItem('auth') === 'ok') { overlay.style.display = 'none'; return; }
+  overlay.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  const check = () => {
+    if (document.getElementById('authInput').value === 'drorhiran') {
+      localStorage.setItem('auth', 'ok');
+      overlay.style.display = 'none';
+      document.body.style.overflow = '';
+    } else {
+      document.getElementById('authError').style.display = 'block';
+      document.getElementById('authInput').value = '';
+    }
+  };
+  document.getElementById('authBtn').addEventListener('click', check);
+  document.getElementById('authInput').addEventListener('keydown', e => { if (e.key === 'Enter') check(); });
+})();
+
 // ─── Marks ────────────────────────────────────────────────────────────────────
-let liked   = new Set(JSON.parse(localStorage.getItem('liked')   || '[]'));
-let watched = new Set(JSON.parse(localStorage.getItem('watched') || '[]'));
+let liked      = new Set(JSON.parse(localStorage.getItem('liked')      || '[]'));
+let watched    = new Set(JSON.parse(localStorage.getItem('watched')    || '[]'));
+let downloaded = new Set(JSON.parse(localStorage.getItem('downloaded') || '[]'));
 function saveMarks() {
-  localStorage.setItem('liked',   JSON.stringify([...liked]));
-  localStorage.setItem('watched', JSON.stringify([...watched]));
+  localStorage.setItem('liked',      JSON.stringify([...liked]));
+  localStorage.setItem('watched',    JSON.stringify([...watched]));
+  localStorage.setItem('downloaded', JSON.stringify([...downloaded]));
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -107,7 +129,7 @@ function setView(name) {
   document.getElementById('errorState').style.display     = name === 'error'    ? 'block' : 'none';
   document.getElementById('rabbisGrid').style.display     = name === 'rabbis'   ? 'grid'  : 'none';
   document.getElementById('seriesGrid').style.display     = name === 'series'   ? 'grid'  : 'none';
-  document.getElementById('shiurimList').style.display    = (name === 'shiurim' || name === 'search' || name === 'favorites') ? 'flex' : 'none';
+  document.getElementById('shiurimList').style.display    = ['shiurim','search','favorites','downloads'].includes(name) ? 'flex' : 'none';
   document.getElementById('emptyState').style.display     = name === 'empty'    ? 'block' : 'none';
   document.getElementById('quickFilterBar').style.display = name === 'shiurim'  ? 'block' : 'none';
 
@@ -116,6 +138,9 @@ function setView(name) {
 
   view = name;
   updateBreadcrumb();
+  // Mobile back button: visible whenever not on home
+  const mbb = document.getElementById('mobileBackBtn');
+  mbb.style.display = (name === 'rabbis') ? 'none' : 'block';
 }
 
 // ─── Breadcrumb ───────────────────────────────────────────────────────────────
@@ -140,10 +165,13 @@ function updateBreadcrumb() {
     bcRabbi.style.display = 'inline-block';
     bcSep2.style.display  = 'inline';
     bcCur.textContent     = currentSeries?.name || '';
-  } else if (view === 'favorites' || view === 'search' || view === 'empty') {
+  } else {
     bcRabbi.style.display = 'none';
     bcSep2.style.display  = 'none';
-    bcCur.textContent     = view === 'favorites' ? '❤️ מועדפים' : '';
+    bcCur.textContent = view === 'favorites'  ? '❤️ מועדפים'
+                      : view === 'downloads'  ? '⬇️ הורדות'
+                      : view === 'search'     ? '🔍 חיפוש'
+                      : '';
   }
 }
 
@@ -322,7 +350,7 @@ function renderShiurim() {
     const btnDl = clone.querySelector('.btn-dl');
     btnDl.href = dlUrl(f.id);
     btnDl.addEventListener('click', () => {
-      showToast('⬇️ מתחיל הורדה...');
+      downloaded.add(f.id); saveMarks(); showToast('⬇️ מתחיל הורדה...');
     });
 
     const btnLike = clone.querySelector('.btn-like');
@@ -493,7 +521,7 @@ function renderGlobalSearch() {
     if (watched.has(f.id))  card.classList.add('is-watched');
     if (playingId === f.id) card.classList.add('is-playing');
 
-    clone.querySelector('.card-date').textContent  = `${rabbi.name} › ${series.name}`;
+    setPathBreadcrumb(clone.querySelector('.card-date'), rabbi, series);
     clone.querySelector('.card-title').textContent = cleanName(f.name);
     if (watched.has(f.id)) clone.querySelector('.watched-dot').style.display = 'block';
 
@@ -503,9 +531,7 @@ function renderGlobalSearch() {
 
     const btnDl = clone.querySelector('.btn-dl');
     btnDl.href = dlUrl(f.id);
-    btnDl.addEventListener('click', () => {
-      showToast('⬇️ מתחיל הורדה...');
-    });
+    btnDl.addEventListener('click', () => { downloaded.add(f.id); saveMarks(); showToast('⬇️ מתחיל הורדה...'); });
 
     const btnWa = clone.querySelector('.btn-wa');
     btnWa.href = `https://wa.me/?text=${encodeURIComponent(`${cleanName(f.name)}\n${dlUrl(f.id)}`)}`;
@@ -530,6 +556,19 @@ function renderGlobalSearch() {
 
     list.appendChild(clone);
   });
+}
+
+// helper: clickable rabbi › series path
+function setPathBreadcrumb(el, rabbi, series) {
+  el.innerHTML = '';
+  const r = document.createElement('button');
+  r.className = 'path-btn'; r.textContent = rabbi.name;
+  r.addEventListener('click', e => { e.stopPropagation(); showSeries(rabbi); });
+  const sep = document.createTextNode(' › ');
+  const s = document.createElement('button');
+  s.className = 'path-btn'; s.textContent = series.name;
+  s.addEventListener('click', e => { e.stopPropagation(); currentRabbi = rabbi; showShiurim(series); });
+  el.append(r, sep, s);
 }
 
 // ─── Favorites ───────────────────────────────────────────────────────────────
@@ -560,7 +599,68 @@ function renderFavorites() {
     if (watched.has(f.id)) card.classList.add('is-watched');
     if (playingId === f.id) card.classList.add('is-playing');
 
-    clone.querySelector('.card-date').textContent  = `${rabbi.name} › ${series.name}`;
+    setPathBreadcrumb(clone.querySelector('.card-date'), rabbi, series);
+    clone.querySelector('.card-title').textContent = cleanName(f.name);
+    if (watched.has(f.id)) clone.querySelector('.watched-dot').style.display = 'block';
+
+    const btnPlay = clone.querySelector('.btn-play');
+    if (playingId === f.id) { btnPlay.textContent = '⏸ מושמע'; btnPlay.classList.add('playing'); }
+    btnPlay.addEventListener('click', () => playFile(f, results.map(r => r.f), { rabbi, series }));
+
+    const btnDl = clone.querySelector('.btn-dl');
+    btnDl.href = dlUrl(f.id);
+    btnDl.addEventListener('click', () => { downloaded.add(f.id); saveMarks(); showToast('⬇️ מתחיל הורדה...'); });
+
+    const btnWa = clone.querySelector('.btn-wa');
+    btnWa.href = `https://wa.me/?text=${encodeURIComponent(`${cleanName(f.name)}\n${dlUrl(f.id)}`)}`;
+
+    const btnLike = clone.querySelector('.btn-like');
+    btnLike.textContent = '❤️'; btnLike.classList.add('active');
+    btnLike.addEventListener('click', () => {
+      liked.delete(f.id); saveMarks(); showToast('💔 הוסר מהמועדפים'); renderFavorites();
+    });
+
+    const btnW = clone.querySelector('.btn-watched');
+    btnW.textContent = watched.has(f.id) ? '✅' : '☐';
+    if (watched.has(f.id)) btnW.classList.add('active');
+    btnW.addEventListener('click', () => {
+      watched.has(f.id) ? watched.delete(f.id) : watched.add(f.id);
+      saveMarks(); renderFavorites();
+    });
+
+    list.appendChild(clone);
+  });
+}
+
+// ─── Downloads history ────────────────────────────────────────────────────────
+function renderDownloaded() {
+  const results = [];
+  allData.forEach(rabbi => {
+    rabbi.series.forEach(series => {
+      (series.files || []).forEach(f => {
+        if (downloaded.has(f.id)) results.push({ f, rabbi, series });
+      });
+    });
+  });
+
+  if (results.length === 0) {
+    document.getElementById('emptyMsg').textContent = 'לא הורדת שיעורים עדיין';
+    setView('empty'); return;
+  }
+
+  setView('downloads');
+  const list = document.getElementById('shiurimList');
+  list.innerHTML = '';
+  const tmpl = document.getElementById('cardTemplate');
+
+  results.forEach(({ f, rabbi, series }) => {
+    const clone = tmpl.content.cloneNode(true);
+    const card  = clone.querySelector('.shiur-card');
+    if (liked.has(f.id))    card.classList.add('is-liked');
+    if (watched.has(f.id))  card.classList.add('is-watched');
+    if (playingId === f.id) card.classList.add('is-playing');
+
+    setPathBreadcrumb(clone.querySelector('.card-date'), rabbi, series);
     clone.querySelector('.card-title').textContent = cleanName(f.name);
     if (watched.has(f.id)) clone.querySelector('.watched-dot').style.display = 'block';
 
@@ -576,12 +676,11 @@ function renderFavorites() {
     btnWa.href = `https://wa.me/?text=${encodeURIComponent(`${cleanName(f.name)}\n${dlUrl(f.id)}`)}`;
 
     const btnLike = clone.querySelector('.btn-like');
-    btnLike.textContent = '❤️';
-    btnLike.classList.add('active');
+    btnLike.textContent = liked.has(f.id) ? '❤️' : '🤍';
+    if (liked.has(f.id)) btnLike.classList.add('active');
     btnLike.addEventListener('click', () => {
-      liked.delete(f.id); saveMarks();
-      showToast('💔 הוסר מהמועדפים');
-      renderFavorites();
+      liked.has(f.id) ? liked.delete(f.id) : liked.add(f.id);
+      saveMarks(); renderDownloaded();
     });
 
     const btnW = clone.querySelector('.btn-watched');
@@ -589,7 +688,7 @@ function renderFavorites() {
     if (watched.has(f.id)) btnW.classList.add('active');
     btnW.addEventListener('click', () => {
       watched.has(f.id) ? watched.delete(f.id) : watched.add(f.id);
-      saveMarks(); renderFavorites();
+      saveMarks(); renderDownloaded();
     });
 
     list.appendChild(clone);
@@ -597,10 +696,15 @@ function renderFavorites() {
 }
 
 document.getElementById('favoritesBtn').addEventListener('click', () => {
-  currentRabbi = null; currentSeries = null;
-  searchQuery = '';
+  currentRabbi = null; currentSeries = null; searchQuery = '';
   document.getElementById('searchInput').value = '';
   renderFavorites();
+});
+
+document.getElementById('downloadsBtn').addEventListener('click', () => {
+  currentRabbi = null; currentSeries = null; searchQuery = '';
+  document.getElementById('searchInput').value = '';
+  renderDownloaded();
 });
 
 // ─── Search ───────────────────────────────────────────────────────────────────
@@ -662,6 +766,23 @@ document.getElementById('settingsSave').addEventListener('click', () => {
   settingsModal.style.display = 'none';
   showToast('✅ נשמר — טוען נתונים...');
   fetchData(true);
+});
+
+// ─── Logo → home ─────────────────────────────────────────────────────────────
+document.getElementById('logoArea').addEventListener('click', showRabbis);
+
+// ─── Mobile back button ───────────────────────────────────────────────────────
+document.getElementById('mobileBackBtn').addEventListener('click', () => {
+  if (view === 'shiurim')  showSeries(currentRabbi);
+  else                     showRabbis();
+});
+
+// ─── About page ───────────────────────────────────────────────────────────────
+document.getElementById('aboutBtn').addEventListener('click', () => {
+  document.getElementById('aboutPage').style.display = 'flex';
+});
+document.getElementById('aboutClose').addEventListener('click', () => {
+  document.getElementById('aboutPage').style.display = 'none';
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────

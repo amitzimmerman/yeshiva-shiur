@@ -13,11 +13,23 @@
   <link rel="apple-touch-icon" href="dror-logo.png" />
   <link rel="stylesheet" href="styles.css" />
 </head>
+<!-- Password Gate -->
+<div id="authOverlay" class="auth-overlay">
+  <div class="auth-box">
+    <img src="dror-logo.png" class="auth-logo" alt="לוגו" />
+    <h1 class="auth-title">ישיבת דרור חירן</h1>
+    <p class="auth-sub">שיעורי תורה להאזנה והורדה</p>
+    <input id="authInput" class="auth-input" type="password" placeholder="סיסמה" />
+    <button id="authBtn" class="auth-btn">כניסה →</button>
+    <p id="authError" class="auth-error" style="display:none;">סיסמה שגויה, נסה שוב</p>
+  </div>
+</div>
+
 <body>
 
 <header class="site-header">
   <div class="header-top">
-    <div class="logo-area">
+    <div class="logo-area" id="logoArea" style="cursor:pointer;">
       <img src="dror-logo.png" alt="ישיבת דרור חירן" class="logo-img" />
       <div class="logo-text">
         <span class="logo-main">ישיבת דרור חירן</span>
@@ -34,11 +46,36 @@
     </nav>
     <div class="header-actions">
       <button class="btn-reload-top" id="reloadBtn">🔄</button>
-      <button class="btn-favorites-top" id="favoritesBtn">❤️</button>
-      <button class="btn-settings" id="settingsBtn">⚙️</button>
+      <button class="btn-header-icon" id="favoritesBtn" title="מועדפים">❤️</button>
+      <button class="btn-header-icon" id="downloadsBtn" title="הורדות">⬇️</button>
+      <button class="btn-header-icon" id="aboutBtn" title="על הישיבה">ℹ️</button>
+      <button class="btn-header-icon" id="settingsBtn" title="הגדרות">⚙️</button>
     </div>
   </div>
 </header>
+
+<!-- Mobile back button -->
+<button id="mobileBackBtn" class="mobile-back-btn" style="display:none;">→ חזרה</button>
+
+<!-- About Page -->
+<div id="aboutPage" class="about-page" style="display:none;">
+  <div class="pp-header">
+    <button id="aboutClose" class="pp-close">← חזרה</button>
+    <div class="pp-crumb">על הישיבה</div>
+  </div>
+  <div class="about-body">
+    <div class="about-logo-wrap">
+      <img src="dror-logo.png" class="about-logo" alt="לוגו" />
+    </div>
+    <h1 class="about-title">ישיבת דרור חירן</h1>
+    <div class="about-content">
+      <p>ישיבת דרור חירן היא ישיבה תיכונית המשלבת תורה ועבודה, ערכים יהודיים ואהבת הארץ.</p>
+      <p>האתר מרכז שיעורי תורה מרבני הישיבה להאזנה ולהורדה חינם, לתלמידים ולבוגרים כאחד.</p>
+      <hr class="about-divider" />
+      <p class="about-contact">לפרטים נוספים ויצירת קשר — פנו לישיבה ישירות.</p>
+    </div>
+  </div>
+</div>
 
 <!-- Settings Modal -->
 <div id="settingsModal" class="settings-overlay" style="display:none;">
