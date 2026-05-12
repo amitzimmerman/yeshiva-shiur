@@ -403,6 +403,7 @@ function openPlayerPage(f) {
 
   page.style.display = 'flex';
   page.scrollTop = 0;
+  document.body.style.overflow = 'hidden';
   updatePlayerPage(f);
 }
 
@@ -460,6 +461,7 @@ function updatePlayerPage(f) {
 document.getElementById('ppClose').addEventListener('click', () => {
   document.getElementById('ppFrame').src = '';
   document.getElementById('playerPage').style.display = 'none';
+  document.body.style.overflow = '';
   playingId = null;
 });
 

@@ -384,9 +384,13 @@ a { color: inherit; text-decoration: none; }
 
 /* ══ Player Page ══ */
 .player-page {
-  position: fixed; inset: 0; z-index: 300;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  width: 100%; height: 100%;
+  z-index: 600;
   background: var(--bg); overflow-y: auto;
   display: flex; flex-direction: column;
+  -webkit-overflow-scrolling: touch;
 }
 .pp-header {
   background: linear-gradient(135deg, var(--navy-dark), var(--navy));
@@ -417,8 +421,8 @@ a { color: inherit; text-decoration: none; }
 
 /* Fixed header on mobile so back button always visible */
 @media (max-width: 768px) {
-  .pp-header { position: fixed; top: 0; left: 0; right: 0; }
-  .pp-body   { padding-top: 4.5rem; }
+  .pp-header { position: sticky; top: 0; left: 0; right: 0; }
+  .pp-body   { padding-top: 1rem; }
 }
 .pp-speed {
   display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;
@@ -629,12 +633,41 @@ a { color: inherit; text-decoration: none; }
 
 /* ══ Responsive ══ */
 @media (max-width: 600px) {
+  /* Header: 2 rows on mobile */
+  .header-top {
+    flex-wrap: wrap;
+    padding: 0.5rem 0.75rem 0.4rem;
+    gap: 0.3rem;
+  }
+  .logo-area  { flex: 1; min-width: 0; }
+  .logo-img   { height: 34px; }
+  .logo-main  { font-size: 0.95rem; }
+  .logo-sub   { display: none; }
+  .btn-reload-top {
+    order: 2;
+    margin-right: 0;
+    padding: 0.28rem 0.5rem;
+    font-size: 0.9rem;
+  }
+  .header-actions {
+    order: 3;
+    width: 100%;
+    justify-content: flex-end;
+    padding-bottom: 0.2rem;
+    gap: 0.25rem;
+  }
+  .btn-header-icon {
+    padding: 0.28rem 0.5rem;
+    font-size: 0.95rem;
+  }
+  .breadcrumb { display: none !important; }
+
+  /* Cards */
   .card-grid { grid-template-columns: repeat(2, 1fr); }
   .grid-card-cover { height: 110px; }
   .grid-card-avatar { width: 60px; height: 60px; font-size: 1.6rem; }
+
+  /* Filter bar */
   .filter-bar-inner { flex-direction: column; }
   .search-wrap { width: 100%; }
-  .player-bar { flex-wrap: wrap; }
-  #drivePlayer { width: 100%; }
-  .breadcrumb { display: none !important; }
 }
