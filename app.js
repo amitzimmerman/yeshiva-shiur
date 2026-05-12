@@ -56,13 +56,11 @@ async function fetchData(forceRefresh = false) {
         if (data && data.length > 0) {
           allData = data;
           showRabbis();
-          // Refresh in background if cache is stale
-          if (Date.now() - ts > CACHE_TTL) {
-            fetchFromNetwork().then(fresh => {
-              allData = fresh;
-              if (view === 'rabbis') renderRabbis();
-            }).catch(() => {});
-          }
+          // Always refresh in background
+          fetchFromNetwork().then(fresh => {
+            allData = fresh;
+            if (view === 'rabbis') renderRabbis();
+          }).catch(() => {});
           return;
         }
       }
