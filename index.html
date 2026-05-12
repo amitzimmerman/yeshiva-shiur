@@ -12,6 +12,7 @@
   <meta name="apple-mobile-web-app-title" content="דרור חירן" />
   <link rel="apple-touch-icon" href="dror-logo.png" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
 </head>
 <body>
 
@@ -128,7 +129,7 @@
     <div class="pp-crumb" id="ppCrumb"></div>
   </div>
   <div class="pp-body">
-    <iframe id="ppFrame" class="pp-frame" allow="autoplay" frameborder="0" src=""></iframe>
+    <audio id="ppAudio" class="pp-audio" controls></audio>
     <div class="pp-meta">
       <h2 class="pp-title" id="ppTitle"></h2>
       <div class="pp-actions">
@@ -176,6 +177,7 @@
   </article>
 </template>
 
+<script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
