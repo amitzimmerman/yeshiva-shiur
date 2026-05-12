@@ -107,7 +107,7 @@ function setView(name) {
   document.getElementById('errorState').style.display     = name === 'error'    ? 'block' : 'none';
   document.getElementById('rabbisGrid').style.display     = name === 'rabbis'   ? 'grid'  : 'none';
   document.getElementById('seriesGrid').style.display     = name === 'series'   ? 'grid'  : 'none';
-  document.getElementById('shiurimList').style.display    = (name === 'shiurim' || name === 'search') ? 'flex' : 'none';
+  document.getElementById('shiurimList').style.display    = (name === 'shiurim' || name === 'search' || name === 'favorites') ? 'flex' : 'none';
   document.getElementById('emptyState').style.display     = name === 'empty'    ? 'block' : 'none';
   document.getElementById('quickFilterBar').style.display = name === 'shiurim'  ? 'block' : 'none';
 
@@ -140,6 +140,10 @@ function updateBreadcrumb() {
     bcRabbi.style.display = 'inline-block';
     bcSep2.style.display  = 'inline';
     bcCur.textContent     = currentSeries?.name || '';
+  } else if (view === 'favorites' || view === 'search' || view === 'empty') {
+    bcRabbi.style.display = 'none';
+    bcSep2.style.display  = 'none';
+    bcCur.textContent     = view === 'favorites' ? '❤️ מועדפים' : '';
   }
 }
 
@@ -459,16 +463,21 @@ document.getElementById('ppClose').addEventListener('click', () => {
   playingId = null;
 });
 
-// ─── Download all (folder ZIP) ────────────────────────────────────────────────
+// ─── Download all ─────────────────────────────────────────────────────────────
 document.getElementById('dlAllBtn').addEventListener('click', () => {
-  if (!currentSeries?.id) return;
-  const a = document.createElement('a');
-  a.href = `https://drive.google.com/drive/folders/${currentSeries.id}?usp=sharing`;
-  a.target = '_blank';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  showToast(`⬇️ פותח תיקיית הסדרה בדרייב`);
+  if (!currentSeries) return;
+  const files = currentSeries.files.filter(f => f.id);
+  if (!files.length) return;
+  showToast(`⬇️ מוריד ${files.length} שיעורים...`);
+  files.forEach((f, i) => {
+    setTimeout(() => {
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = 'display:none;width:0;height:0;position:absolute;';
+      iframe.src = dlUrl(f.id);
+      document.body.appendChild(iframe);
+      setTimeout(() => iframe.remove(), 15000);
+    }, i * 1500);
+  });
 });
 
 // ─── Navigation events ────────────────────────────────────────────────────────
@@ -550,6 +559,77 @@ function renderGlobalSearch() {
     list.appendChild(clone);
   });
 }
+
+// ─── Favorites ───────────────────────────────────────────────────────────────
+function renderFavorites() {
+  const results = [];
+  allData.forEach(rabbi => {
+    rabbi.series.forEach(series => {
+      (series.files || []).forEach(f => {
+        if (liked.has(f.id)) results.push({ f, rabbi, series });
+      });
+    });
+  });
+
+  if (results.length === 0) {
+    document.getElementById('emptyMsg').textContent = 'אין שיעורים מועדפים עדיין — לחץ ❤️ על שיעור כדי להוסיף';
+    setView('empty'); return;
+  }
+
+  setView('favorites');
+  const list = document.getElementById('shiurimList');
+  list.innerHTML = '';
+  const tmpl = document.getElementById('cardTemplate');
+
+  results.forEach(({ f, rabbi, series }) => {
+    const clone = tmpl.content.cloneNode(true);
+    const card  = clone.querySelector('.shiur-card');
+    card.classList.add('is-liked');
+    if (watched.has(f.id)) card.classList.add('is-watched');
+    if (playingId === f.id) card.classList.add('is-playing');
+
+    clone.querySelector('.card-date').textContent  = `${rabbi.name} › ${series.name}`;
+    clone.querySelector('.card-title').textContent = cleanName(f.name);
+    if (watched.has(f.id)) clone.querySelector('.watched-dot').style.display = 'block';
+
+    const btnPlay = clone.querySelector('.btn-play');
+    if (playingId === f.id) { btnPlay.textContent = '⏸ מושמע'; btnPlay.classList.add('playing'); }
+    btnPlay.addEventListener('click', () => playFile(f, results.map(r => r.f), { rabbi, series }));
+
+    const btnDl = clone.querySelector('.btn-dl');
+    btnDl.href = dlUrl(f.id);
+    btnDl.addEventListener('click', () => showToast('⬇️ מתחיל הורדה...'));
+
+    const btnWa = clone.querySelector('.btn-wa');
+    btnWa.href = `https://wa.me/?text=${encodeURIComponent(`${cleanName(f.name)}\n${dlUrl(f.id)}`)}`;
+
+    const btnLike = clone.querySelector('.btn-like');
+    btnLike.textContent = '❤️';
+    btnLike.classList.add('active');
+    btnLike.addEventListener('click', () => {
+      liked.delete(f.id); saveMarks();
+      showToast('💔 הוסר מהמועדפים');
+      renderFavorites();
+    });
+
+    const btnW = clone.querySelector('.btn-watched');
+    btnW.textContent = watched.has(f.id) ? '✅' : '☐';
+    if (watched.has(f.id)) btnW.classList.add('active');
+    btnW.addEventListener('click', () => {
+      watched.has(f.id) ? watched.delete(f.id) : watched.add(f.id);
+      saveMarks(); renderFavorites();
+    });
+
+    list.appendChild(clone);
+  });
+}
+
+document.getElementById('favoritesBtn').addEventListener('click', () => {
+  currentRabbi = null; currentSeries = null;
+  searchQuery = '';
+  document.getElementById('searchInput').value = '';
+  renderFavorites();
+});
 
 // ─── Search ───────────────────────────────────────────────────────────────────
 document.getElementById('searchInput').addEventListener('input', e => {
