@@ -3,9 +3,10 @@ let SCRIPT_URL = localStorage.getItem('script_url') || SCRIPT_URL_DEFAULT;
 
 // ─── Admin mode ───────────────────────────────────────────────────────────────
 const ADMIN_CODE = 'drorAdmin';   // ← שנה לקוד שאתה רוצה
-// sessionStorage: נמחק אוטומטית כשסוגרים את הדפדפן/טאב
-localStorage.removeItem('isAdmin'); // נקה ישן
-let isAdmin = sessionStorage.getItem('isAdmin') === 'yes';
+// זיכרון בלבד — לא נשמר בשום מקום, מתאפס בכל טעינת דף
+localStorage.removeItem('isAdmin');
+sessionStorage.removeItem('isAdmin');
+let isAdmin = false;
 
 function checkAdmin(callback) {
   if (isAdmin) { callback(); return; }
@@ -26,8 +27,7 @@ function checkAdmin(callback) {
   inp.focus();
   const attempt = () => {
     if (inp.value === ADMIN_CODE) {
-      sessionStorage.setItem('isAdmin', 'yes');
-      isAdmin = true;
+      isAdmin = true;   // זיכרון בלבד
       overlay.remove();
       callback();
     } else {
@@ -41,16 +41,15 @@ function checkAdmin(callback) {
 }
 
 // ─── Password ─────────────────────────────────────────────────────────────────
-// sessionStorage: נשאל שוב בכל פתיחת דפדפן/טאב
-localStorage.removeItem('auth'); // נקה ישן
+// לא נשמר בשום מקום — נשאל בכל טעינת דף
+localStorage.removeItem('auth');
+sessionStorage.removeItem('auth');
 (function() {
   const overlay = document.getElementById('authOverlay');
-  if (sessionStorage.getItem('auth') === 'ok') { overlay.style.display = 'none'; return; }
   overlay.style.display = 'flex';
   document.body.style.overflow = 'hidden';
   const check = () => {
     if (document.getElementById('authInput').value === 'drorhiran') {
-      sessionStorage.setItem('auth', 'ok');
       overlay.style.display = 'none';
       document.body.style.overflow = '';
     } else {
