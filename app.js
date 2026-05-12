@@ -385,6 +385,26 @@ document.getElementById('playerNext').addEventListener('click', () => {
   if (idx >= 0 && idx < playList.length - 1) playFile(playList[idx + 1]);
 });
 
+// ─── Download all ─────────────────────────────────────────────────────────────
+document.getElementById('dlAllBtn').addEventListener('click', () => {
+  if (!currentSeries) return;
+  const files = currentSeries.files.filter(f => f.id);
+  if (files.length === 0) return;
+  showToast(`⬇️ מוריד ${files.length} שיעורים...`);
+  files.forEach((f, i) => {
+    setTimeout(() => {
+      const a = document.createElement('a');
+      a.href = dlUrl(f.id);
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      watched.add(f.id);
+    }, i * 700);
+  });
+  setTimeout(() => { saveMarks(); renderShiurim(); }, 300);
+});
+
 // ─── Navigation events ────────────────────────────────────────────────────────
 document.getElementById('bcHome').addEventListener('click', showRabbis);
 document.getElementById('bcRabbi').addEventListener('click', () => {

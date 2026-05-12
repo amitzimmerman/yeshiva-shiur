@@ -193,6 +193,15 @@ a { color: inherit; text-decoration: none; }
   border-radius: 12px; border: 1px solid var(--border);
 }
 #statsTotal   { margin-right: auto; }
+.btn-dl-all {
+  padding: 0.26rem 0.85rem;
+  background: var(--navy); color: #fff;
+  border: none; border-radius: 20px;
+  font-size: 0.78rem; font-weight: 700;
+  font-family: inherit; cursor: pointer;
+  transition: background 0.18s; white-space: nowrap;
+}
+.btn-dl-all:hover { background: var(--navy-light); }
 .liked-pill   { color: var(--red);   border-color: #f5c6c2; background: #fdf1f0; }
 .watched-pill { color: var(--green); border-color: #b7e4c7; background: #eafaf1; }
 
