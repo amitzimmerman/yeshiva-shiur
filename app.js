@@ -40,16 +40,24 @@ function checkAdmin(callback) {
   overlay.querySelector('#adminCancel').addEventListener('click', () => overlay.remove());
 }
 
-// ─── Password ─────────────────────────────────────────────────────────────────
-// לא נשמר בשום מקום — נשאל בכל טעינת דף
-localStorage.removeItem('auth');
-sessionStorage.removeItem('auth');
+// ─── Password — נשמר 30 דקות ─────────────────────────────────────────────────
+const AUTH_TTL = 30 * 60 * 1000; // 30 דקות
 (function() {
   const overlay = document.getElementById('authOverlay');
+  // בדוק אם עדיין בתוך 30 דקות
+  try {
+    const ts = parseInt(localStorage.getItem('auth_ts') || '0', 10);
+    if (ts && Date.now() - ts < AUTH_TTL) {
+      overlay.style.display = 'none';
+      return;
+    }
+  } catch(_) {}
+
   overlay.style.display = 'flex';
   document.body.style.overflow = 'hidden';
   const check = () => {
     if (document.getElementById('authInput').value === 'drorhiran') {
+      localStorage.setItem('auth_ts', Date.now().toString());
       overlay.style.display = 'none';
       document.body.style.overflow = '';
     } else {
@@ -121,7 +129,7 @@ async function fetchData(forceRefresh = false) {
         if (data && data.length > 0) {
           allData = data;
           showRabbis();
-          refreshInBackground();
+          // (no background refresh — cache is used as-is)
           return;
         }
       }
@@ -135,7 +143,7 @@ async function fetchData(forceRefresh = false) {
         if (data.length > 0) {
           allData = data;
           showRabbis();
-          refreshInBackground();
+          // (no background refresh — cache is used as-is)
           return;
         }
       }
@@ -543,7 +551,11 @@ document.getElementById('bcHome').addEventListener('click', showRabbis);
 document.getElementById('bcRabbi').addEventListener('click', () => {
   if (currentRabbi) showSeries(currentRabbi);
 });
-document.getElementById('reloadBtn').addEventListener('click', () => fetchData(true));
+document.getElementById('reloadBtn').addEventListener('click', () => {
+  // מציג מהקאש — מהיר. רענון מ-Apps Script רק דרך ⚙️ (מנהל)
+  if (allData.length > 0) { showRabbis(); showToast('🔄 מציג נתונים שמורים'); }
+  else fetchData(false);
+});
 document.getElementById('reloadOnError').addEventListener('click', () => fetchData(true));
 
 // ─── Global search ────────────────────────────────────────────────────────────

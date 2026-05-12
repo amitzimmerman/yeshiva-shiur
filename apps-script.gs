@@ -10,34 +10,31 @@ const AUDIO_EXTS = ['mp3', 'm4a', 'wav', 'ogg', 'aac', 'mp4', 'mpeg', 'flac'];
 // ─── נקודת כניסה ─────────────────────────────────────────────────────────────
 function doGet() {
   try {
-    const root   = DriveApp.getFolderById(ROOT_FOLDER_ID);
-    const result = [];
+    var root   = DriveApp.getFolderById(ROOT_FOLDER_ID);
+    var result = [];
 
-    // כל תיקייה ישירה תחת Root → רב
-    const rabbiIt = root.getFolders();
+    var rabbiIt = root.getFolders();
     while (rabbiIt.hasNext()) {
-      const rabbiFolder = rabbiIt.next();
-      const seriesList  = [];
+      var rabbiFolder = rabbiIt.next();
+      var seriesList  = [];
 
-      // קבצים ישירים תחת תיקיית הרב (ללא תת-תיקייה) → סדרה "כללי"
-      const directFiles = getAudioFiles(rabbiFolder);
+      // קבצים ישירים תחת תיקיית הרב → סדרה "כללי"
+      var directFiles = getAudioFiles(rabbiFolder);
       if (directFiles.length > 0) {
         seriesList.push({ id: rabbiFolder.getId() + '_root', name: 'כללי', files: directFiles });
       }
 
-      // כל מה שבפנים — רקורסיבי עם שם מלא של הנתיב
-      const subIt = rabbiFolder.getFolders();
+      // רקורסיה לכל תת-תיקיות בכל עומק
+      // כל תיקייה שמכילה קבצי אודיו → סדרה בשמה שלה
+      var subIt = rabbiFolder.getFolders();
       while (subIt.hasNext()) {
-        collectAllSeries(subIt.next(), '', seriesList);
+        collectSeries(subIt.next(), seriesList);
       }
 
       if (seriesList.length > 0) {
-        seriesList.sort(function(a, b) { return a.name.localeCompare(b.name, 'he'); });
         result.push({ id: rabbiFolder.getId(), name: rabbiFolder.getName(), series: seriesList });
       }
     }
-
-    result.sort(function(a, b) { return a.name.localeCompare(b.name, 'he'); });
 
     return ContentService
       .createTextOutput(JSON.stringify(result))
@@ -50,29 +47,25 @@ function doGet() {
   }
 }
 
-// ─── סריקה רקורסיבית — כל עומק, שם מלא של הנתיב ─────────────────────────────
-// path: הנתיב שנצבר עד כאן (ריק בקריאה הראשונה)
-// seriesList: המערך שמתמלא
-function collectAllSeries(folder, path, seriesList) {
-  var name     = folder.getName();
-  var fullPath = path ? (path + ' › ' + name) : name;
-
-  // קבצי אודיו ישירים בתיקייה זו → סדרה עם השם המלא
+// ─── רקורסיה: כל תיקייה שיש בה קבצי אודיו → סדרה בשמה ──────────────────────
+function collectSeries(folder, seriesList) {
   var files = getAudioFiles(folder);
   if (files.length > 0) {
-    seriesList.push({ id: folder.getId(), name: fullPath, files: files });
+    seriesList.push({
+      id:    folder.getId(),
+      name:  folder.getName(),   // שם התיקייה בלבד, לא נתיב מלא
+      files: files
+    });
   }
-
-  // כניסה לתת-תיקיות (עומק כלשהו)
+  // המשך לתת-תיקיות בכל עומק
   var subIt = folder.getFolders();
   while (subIt.hasNext()) {
-    collectAllSeries(subIt.next(), fullPath, seriesList);
+    collectSeries(subIt.next(), seriesList);
   }
 }
 
 // ─── שליפת קבצי אודיו מתיקייה (ישירים בלבד, ללא ירידה) ───────────────────────
 function getAudioFiles(folder) {
-  // איסוף PDF לצורך התאמת מקורות
   var pdfs = {};
   try {
     var pdfIt = folder.getFilesByType('application/pdf');
@@ -83,24 +76,23 @@ function getAudioFiles(folder) {
     }
   } catch (_) {}
 
-  var files   = [];
-  var fileIt  = folder.getFiles();
+  var files  = [];
+  var fileIt = folder.getFiles();
   while (fileIt.hasNext()) {
-    var f    = fileIt.next();
-    var name = f.getName();
-    var dot  = name.lastIndexOf('.');
+    var f   = fileIt.next();
+    var nm  = f.getName();
+    var dot = nm.lastIndexOf('.');
     if (dot < 0) continue;
-    var ext  = name.substring(dot + 1).toLowerCase();
+    var ext = nm.substring(dot + 1).toLowerCase();
     if (AUDIO_EXTS.indexOf(ext) < 0) continue;
 
     var entry = {
       id:   f.getId(),
-      name: name,
+      name: nm,
       date: Utilities.formatDate(f.getDateCreated(), 'Asia/Jerusalem', 'dd/MM/yyyy')
     };
-    var key = name.substring(0, dot).trim().toLowerCase();
+    var key = nm.substring(0, dot).trim().toLowerCase();
     if (pdfs[key]) entry.sourceId = pdfs[key];
-
     files.push(entry);
   }
 
@@ -123,17 +115,16 @@ function shareFolderRecursive(folder) {
     var chunk    = ids.slice(i, i + 20);
     var requests = chunk.map(function(id) {
       return {
-        url:            'https://www.googleapis.com/drive/v3/files/' + id + '/permissions',
-        method:         'post',
-        contentType:    'application/json',
-        headers:        { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
-        payload:        JSON.stringify({ role: 'reader', type: 'anyone' }),
+        url:         'https://www.googleapis.com/drive/v3/files/' + id + '/permissions',
+        method:      'post',
+        contentType: 'application/json',
+        headers:     { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+        payload:     JSON.stringify({ role: 'reader', type: 'anyone' }),
         muteHttpExceptions: true
       };
     });
     UrlFetchApp.fetchAll(requests);
   }
-
   var subIt = folder.getFolders();
   while (subIt.hasNext()) shareFolderRecursive(subIt.next());
 }
