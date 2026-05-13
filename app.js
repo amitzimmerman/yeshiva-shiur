@@ -2,8 +2,7 @@ const SCRIPT_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbx_SKDgy53zJ
 let SCRIPT_URL = localStorage.getItem('script_url') || SCRIPT_URL_DEFAULT;
 
 // ─── Admin mode ───────────────────────────────────────────────────────────────
-const ADMIN_CODE = 'drorAdmin';   // ← שנה לקוד שאתה רוצה
-// זיכרון בלבד — לא נשמר בשום מקום, מתאפס בכל טעינת דף
+const ADMIN_CODE = 'drorAdmin';
 localStorage.removeItem('isAdmin');
 sessionStorage.removeItem('isAdmin');
 let isAdmin = false;
@@ -27,7 +26,7 @@ function checkAdmin(callback) {
   inp.focus();
   const attempt = () => {
     if (inp.value === ADMIN_CODE) {
-      isAdmin = true;   // זיכרון בלבד
+      isAdmin = true;
       overlay.remove();
       callback();
     } else {
@@ -40,19 +39,14 @@ function checkAdmin(callback) {
   overlay.querySelector('#adminCancel').addEventListener('click', () => overlay.remove());
 }
 
-// ─── Password — נשמר 30 דקות ─────────────────────────────────────────────────
-const AUTH_TTL = 30 * 60 * 1000; // 30 דקות
+// ─── Password — 30 דקות ───────────────────────────────────────────────────────
+const AUTH_TTL = 30 * 60 * 1000;
 (function() {
   const overlay = document.getElementById('authOverlay');
-  // בדוק אם עדיין בתוך 30 דקות
   try {
     const ts = parseInt(localStorage.getItem('auth_ts') || '0', 10);
-    if (ts && Date.now() - ts < AUTH_TTL) {
-      overlay.style.display = 'none';
-      return;
-    }
+    if (ts && Date.now() - ts < AUTH_TTL) { overlay.style.display = 'none'; return; }
   } catch(_) {}
-
   overlay.style.display = 'flex';
   document.body.style.overflow = 'hidden';
   const check = () => {
@@ -80,17 +74,39 @@ function saveMarks() {
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
-// view: 'rabbis' | 'series' | 'shiurim'
-let view          = 'rabbis';
-let allData       = [];   // [{id, name, series:[{id, name, files:[]}]}]
-let currentRabbi  = null;
-let currentSeries = null;
-let activeFilter  = 'all';
-let searchQuery   = '';
-let searchScope   = 'all'; // 'all' | 'rabbis' | 'series'
-let sortBy        = 'name';
-let playingId     = null;
-let playList      = [];   // ordered list of files currently navigable
+// מבנה נתונים חדש: עץ תיקיות — {id, name, files:[], folders:[...]}
+// navStack: מערך של תיקיות מה-root לתיקייה הנוכחית
+let view         = 'rabbis';
+let allData      = [];
+let navStack     = [];   // [rabbiFolder, sub1, sub2, ...]
+let activeFilter = 'all';
+let searchQuery  = '';
+let searchScope  = 'all';
+let sortBy       = 'name';
+let playingId    = null;
+let playList     = [];
+
+// ─── Tree helpers ─────────────────────────────────────────────────────────────
+function countFilesInFolder(folder) {
+  let n = (folder.files || []).length;
+  (folder.folders || []).forEach(sub => n += countFilesInFolder(sub));
+  return n;
+}
+function countWatchedInFolder(folder) {
+  let n = (folder.files || []).filter(f => watched.has(f.id)).length;
+  (folder.folders || []).forEach(sub => n += countWatchedInFolder(sub));
+  return n;
+}
+function collectAllFilesFlat(folder, rabbi, results) {
+  (folder.files || []).forEach(f => results.push({ f, rabbi, folder }));
+  (folder.folders || []).forEach(sub => collectAllFilesFlat(sub, rabbi, results));
+}
+function collectAllFoldersFlat(folder, rabbi, results, depth) {
+  depth = depth || 0;
+  if (depth > 0) results.push({ folder, rabbi });
+  (folder.folders || []).forEach(sub => collectAllFoldersFlat(sub, rabbi, results, depth + 1));
+}
+function currentFolder() { return navStack.length > 0 ? navStack[navStack.length - 1] : null; }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 let toastTimer;
@@ -103,12 +119,12 @@ function showToast(msg) {
 }
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
-const DATA_CACHE_KEY = 'shiurim_cache_v1';
-const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 שעות — אחרי זה טוען data.json חדש
+const DATA_CACHE_KEY = 'shiurim_cache_v2';  // v2 = מבנה עץ חדש
+const CACHE_TTL = 6 * 60 * 60 * 1000;
 
 function parseAndFilter(data) {
   if (!Array.isArray(data)) throw new Error('תגובה לא תקינה');
-  return data.filter(r => r.series && r.series.some(s => s.files && s.files.length > 0));
+  return data.filter(r => countFilesInFolder(r) > 0);
 }
 
 async function fetchFromNetwork() {
@@ -120,7 +136,6 @@ async function fetchFromNetwork() {
 }
 
 async function fetchData(forceRefresh = false) {
-  // ── 1. קאש מהיר (מתחת ל-6 שעות) ──────────────────────────────────────────
   if (!forceRefresh) {
     try {
       const raw = localStorage.getItem(DATA_CACHE_KEY);
@@ -129,7 +144,6 @@ async function fetchData(forceRefresh = false) {
         if (data && data.length > 0) {
           allData = data;
           showRabbis();
-          // אם הקאש ישן מ-6 שעות — רענן מ-data.json ברקע
           if (!ts || Date.now() - ts > CACHE_TTL) refreshFromDataJson();
           return;
         }
@@ -137,8 +151,8 @@ async function fetchData(forceRefresh = false) {
     } catch(_) {}
   }
 
-  // ── 2. data.json מה-CDN (מתעדכן פעם ביום ע"י GitHub Actions) ─────────────
   setView('loading');
+
   try {
     const url = 'data.json' + (forceRefresh ? '?t=' + Date.now() : '');
     const res = await fetch(url);
@@ -153,14 +167,12 @@ async function fetchData(forceRefresh = false) {
     }
   } catch(_) {}
 
-  // ── 3. Apps Script ישיר (גיבוי אם data.json לא קיים עדיין) ──────────────
   try {
     allData = await fetchFromNetwork();
     if (allData.length === 0) throw new Error('לא נמצאו שיעורים');
     localStorage.setItem(DATA_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: allData }));
     showRabbis();
   } catch(e) {
-    // קאש ישן כגיבוי אחרון
     try {
       const raw = localStorage.getItem(DATA_CACHE_KEY);
       if (raw) {
@@ -172,13 +184,11 @@ async function fetchData(forceRefresh = false) {
         }
       }
     } catch(_) {}
-    document.getElementById('errorMsg').textContent =
-      'לא ניתן לטעון שיעורים. בדוק חיבור אינטרנט.';
+    document.getElementById('errorMsg').textContent = 'לא ניתן לטעון שיעורים. בדוק חיבור אינטרנט.';
     setView('error');
   }
 }
 
-// רענון שקט מ-data.json (כשהקאש ישן)
 function refreshFromDataJson() {
   fetch('data.json?t=' + Date.now())
     .then(r => r.ok ? r.json() : null)
@@ -198,8 +208,9 @@ function setView(name) {
   document.getElementById('loadingState').style.display   = name === 'loading'  ? 'block' : 'none';
   document.getElementById('errorState').style.display     = name === 'error'    ? 'block' : 'none';
   document.getElementById('rabbisGrid').style.display     = name === 'rabbis'   ? 'grid'  : 'none';
-  document.getElementById('seriesGrid').style.display     = name === 'series'   ? 'grid'  : 'none';
-  document.getElementById('shiurimList').style.display    = ['shiurim','search','favorites','downloads'].includes(name) ? 'flex' : 'none';
+  // 'folder' מציג גם grid וגם list (תיקיות + קבצים ביחד)
+  document.getElementById('seriesGrid').style.display     = ['series','folder'].includes(name) ? 'grid' : 'none';
+  document.getElementById('shiurimList').style.display    = ['shiurim','search','favorites','downloads','folder'].includes(name) ? 'flex' : 'none';
   document.getElementById('emptyState').style.display     = name === 'empty'    ? 'block' : 'none';
   document.getElementById('quickFilterBar').style.display = name === 'shiurim'  ? 'block' : 'none';
 
@@ -208,57 +219,58 @@ function setView(name) {
 
   view = name;
   updateBreadcrumb();
-  // Mobile back button: visible whenever not on home
-  const mbb = document.getElementById('mobileBackBtn');
-  mbb.style.display = (name === 'rabbis') ? 'none' : 'block';
+  document.getElementById('mobileBackBtn').style.display = (name === 'rabbis') ? 'none' : 'block';
 }
 
-// ─── Breadcrumb ───────────────────────────────────────────────────────────────
+// ─── Breadcrumb — בנייה דינמית לפי navStack ──────────────────────────────────
 function updateBreadcrumb() {
-  const bc      = document.getElementById('breadcrumb');
-  const bcRabbi = document.getElementById('bcRabbi');
-  const bcSep2  = document.getElementById('bcSep2');
-  const bcCur   = document.getElementById('bcCurrent');
-
-  if (view === 'rabbis') {
-    bc.style.display = 'none';
-    return;
-  }
+  const bc = document.getElementById('breadcrumb');
+  if (navStack.length === 0) { bc.style.display = 'none'; return; }
   bc.style.display = 'flex';
+  bc.innerHTML = '';
 
-  if (view === 'series') {
-    bcRabbi.style.display = 'none';
-    bcSep2.style.display  = 'none';
-    bcCur.textContent     = currentRabbi?.name || '';
-  } else if (view === 'shiurim') {
-    bcRabbi.textContent   = currentRabbi?.name || '';
-    bcRabbi.style.display = 'inline-block';
-    bcSep2.style.display  = 'inline';
-    bcCur.textContent     = currentSeries?.name || '';
-  } else {
-    bcRabbi.style.display = 'none';
-    bcSep2.style.display  = 'none';
-    bcCur.textContent = view === 'favorites'  ? '❤️ מועדפים'
-                      : view === 'downloads'  ? '⬇️ הורדות'
-                      : view === 'search'     ? '🔍 חיפוש'
-                      : '';
-  }
+  const homeBtn = document.createElement('button');
+  homeBtn.className = 'bc-btn';
+  homeBtn.textContent = '🏠 ראשי';
+  homeBtn.addEventListener('click', showRabbis);
+  bc.appendChild(homeBtn);
+
+  navStack.forEach((folder, i) => {
+    const sep = document.createElement('span');
+    sep.className = 'bc-sep';
+    sep.textContent = ' › ';
+    bc.appendChild(sep);
+
+    if (i < navStack.length - 1) {
+      const btn = document.createElement('button');
+      btn.className = 'bc-btn';
+      btn.textContent = folder.name;
+      const targetIdx = i;
+      btn.addEventListener('click', () => {
+        navStack = navStack.slice(0, targetIdx + 1);
+        renderFolderContents();
+        updateBreadcrumb();
+      });
+      bc.appendChild(btn);
+    } else {
+      const span = document.createElement('span');
+      span.className = 'bc-current';
+      span.textContent = folder.name;
+      bc.appendChild(span);
+    }
+  });
 }
 
 function updateSearch() {
-  const ph = {
-    rabbis:  'חיפוש רב...',
-    series:  'חיפוש סדרה...',
-    shiurim: 'חיפוש שיעור...',
-  };
-  document.getElementById('searchInput').placeholder = ph[view] || 'חיפוש...';
+  document.getElementById('searchInput').placeholder = 'חיפוש...';
   document.getElementById('searchInput').value = '';
   searchQuery = '';
 }
 
 // ─── Rabbis view ──────────────────────────────────────────────────────────────
 function showRabbis() {
-  currentRabbi = null; currentSeries = null;
+  navStack = [];
+  activeFilter = 'all';
   updateSearch();
   setView('rabbis');
   renderRabbis();
@@ -277,13 +289,12 @@ function renderRabbis() {
   const grid = document.getElementById('rabbisGrid');
   grid.innerHTML = '';
   list.forEach(rabbi => {
-    const nonEmptySeries = rabbi.series.filter(s => s.files && s.files.length > 0);
-    const total   = nonEmptySeries.reduce((s, sr) => s + sr.files.length, 0);
-    const doneNum = nonEmptySeries.reduce((s, sr) =>
-      s + sr.files.filter(f => watched.has(f.id)).length, 0);
-    const pct = total ? Math.round((doneNum / total) * 100) : 0;
+    const total       = countFilesInFolder(rabbi);
+    const doneNum     = countWatchedInFolder(rabbi);
+    const pct         = total ? Math.round((doneNum / total) * 100) : 0;
+    const folderCount = (rabbi.folders || []).length;
+    const initial     = rabbi.name.replace(/^הרב\s+/, '').charAt(0) || '?';
 
-    const initial = rabbi.name.replace(/^הרב\s+/, '').charAt(0) || '?';
     const card = document.createElement('div');
     card.className = 'grid-card';
     card.innerHTML = `
@@ -293,43 +304,74 @@ function renderRabbis() {
       <div class="grid-card-body">
         <div class="grid-card-name">${rabbi.name}</div>
         <div class="grid-card-meta">
-          <strong>${nonEmptySeries.length}</strong> סדרות ·
+          ${folderCount ? `<strong>${folderCount}</strong> תיקיות · ` : ''}
           <strong>${total}</strong> שיעורים
         </div>
         <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
       </div>`;
-    card.addEventListener('click', () => showSeries(rabbi));
+    card.addEventListener('click', () => openFolder(rabbi));
     grid.appendChild(card);
   });
 }
 
-// ─── Series view ──────────────────────────────────────────────────────────────
-function showSeries(rabbi) {
-  currentRabbi = rabbi; currentSeries = null;
+// ─── Folder navigation ────────────────────────────────────────────────────────
+function openFolder(folder) {
+  navStack.push(folder);
+  activeFilter = 'all';
+  sortBy = 'name';
   updateSearch();
-  setView('series');
-  renderSeries();
+  document.querySelectorAll('.qf-btn').forEach(b => b.classList.remove('active'));
+  const allBtn = document.querySelector('.qf-btn[data-filter="all"]');
+  if (allBtn) allBtn.classList.add('active');
+  const sortEl = document.getElementById('sortBy');
+  if (sortEl) sortEl.value = 'name';
+  renderFolderContents();
 }
 
-function renderSeries() {
-  const q    = searchQuery.toLowerCase();
-  const list = currentRabbi.series.filter(s =>
-    s.files.length > 0 && (!q || s.name.toLowerCase().includes(q)));
+function goBack() {
+  if (navStack.length === 0) return;
+  navStack.pop();
+  if (navStack.length === 0) {
+    showRabbis();
+  } else {
+    renderFolderContents();
+    updateBreadcrumb();
+  }
+}
 
-  if (list.length === 0) {
-    document.getElementById('emptyMsg').textContent = 'לא נמצאו סדרות';
+// ─── Folder contents: תיקיות בתור grid + קבצים בתור list ────────────────────
+function renderFolderContents() {
+  if (navStack.length === 0) { showRabbis(); return; }
+  const folder = navStack[navStack.length - 1];
+  const q = searchQuery.toLowerCase();
+
+  const subFolders = (folder.folders || [])
+    .filter(f => !q || f.name.toLowerCase().includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name, 'he'));
+  const files = (folder.files || []);
+
+  const hasSubs  = subFolders.length > 0;
+  const hasFiles = files.length > 0;
+
+  if (!hasSubs && !hasFiles) {
+    document.getElementById('emptyMsg').textContent = 'לא נמצאו תוצאות';
     setView('empty'); return;
   }
-  setView('series');
 
+  if      (hasSubs && hasFiles) setView('folder');
+  else if (hasSubs)              setView('series');
+  else                           setView('shiurim');
+
+  // ── grid של תת-תיקיות ──────────────────────────────────────────────────────
   const grid = document.getElementById('seriesGrid');
   grid.innerHTML = '';
-  list.forEach(series => {
-    const total   = series.files.length;
-    const doneNum = series.files.filter(f => watched.has(f.id)).length;
-    const pct     = total ? Math.round((doneNum / total) * 100) : 0;
+  subFolders.forEach(sub => {
+    const total    = countFilesInFolder(sub);
+    const doneNum  = countWatchedInFolder(sub);
+    const pct      = total ? Math.round((doneNum / total) * 100) : 0;
+    const initial  = sub.name.charAt(0) || '?';
+    const hasSubs2 = sub.folders && sub.folders.length > 0;
 
-    const initial = series.name.charAt(0) || '?';
     const card = document.createElement('div');
     card.className = 'grid-card';
     card.innerHTML = `
@@ -337,35 +379,28 @@ function renderSeries() {
         <div class="grid-card-avatar">${initial}</div>
       </div>
       <div class="grid-card-body">
-        <div class="grid-card-name">${series.name}</div>
+        <div class="grid-card-name">${sub.name}</div>
         <div class="grid-card-meta">
+          ${hasSubs2 ? `<strong>${sub.folders.length}</strong> תיקיות · ` : ''}
           <strong>${total}</strong> שיעורים
           ${doneNum ? `· <span style="color:var(--green)">✅ ${doneNum}</span>` : ''}
         </div>
         <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
       </div>`;
-    card.addEventListener('click', () => showShiurim(series));
+    card.addEventListener('click', () => openFolder(sub));
     grid.appendChild(card);
   });
+
+  // ── רשימת קבצים (אם יש) ───────────────────────────────────────────────────
+  if (hasFiles) renderShiurim();
 }
 
 // ─── Shiurim view ─────────────────────────────────────────────────────────────
-function showShiurim(series) {
-  currentSeries = series;
-  activeFilter  = 'all';
-  sortBy        = 'name';
-  updateSearch();
-  document.querySelectorAll('.qf-btn').forEach(b => b.classList.remove('active'));
-  document.querySelector('.qf-btn[data-filter="all"]').classList.add('active');
-  document.getElementById('sortBy').value = 'name';
-  setView('shiurim');
-  renderShiurim();
-}
-
 function getFiltered() {
-  if (!currentSeries) return [];
+  const folder = currentFolder();
+  if (!folder) return [];
   const q = searchQuery.toLowerCase();
-  let list = currentSeries.files.filter(f => {
+  let list = (folder.files || []).filter(f => {
     if (q && !cleanName(f.name).toLowerCase().includes(q)) return false;
     if (activeFilter === 'liked'     && !liked.has(f.id))   return false;
     if (activeFilter === 'watched'   && !watched.has(f.id)) return false;
@@ -391,10 +426,14 @@ function renderShiurim() {
   list.innerHTML = '';
 
   if (filtered.length === 0) {
-    document.getElementById('emptyMsg').textContent = 'לא נמצאו שיעורים';
-    setView('empty'); return;
+    // אם גם אין תת-תיקיות — הצג ריק
+    const folder = currentFolder();
+    if (!folder || !(folder.folders && folder.folders.length > 0)) {
+      document.getElementById('emptyMsg').textContent = 'לא נמצאו שיעורים';
+      setView('empty');
+    }
+    return;
   }
-  setView('shiurim');
 
   const tmpl = document.getElementById('cardTemplate');
   filtered.forEach(f => {
@@ -411,17 +450,14 @@ function renderShiurim() {
 
     const btnPlay = clone.querySelector('.btn-play');
     if (playingId === f.id) { btnPlay.textContent = '⏸ מושמע'; btnPlay.classList.add('playing'); }
-    btnPlay.addEventListener('click', () => playFile(f, filtered, { rabbi: currentRabbi, series: currentSeries }));
+    btnPlay.addEventListener('click', () => playFile(f, filtered));
 
     const btnWa = clone.querySelector('.btn-wa');
-    const waText = encodeURIComponent(`${cleanName(f.name)}\n${dlUrl(f.id)}`);
-    btnWa.href = `https://wa.me/?text=${waText}`;
+    btnWa.href = `https://wa.me/?text=${encodeURIComponent(`${cleanName(f.name)}\n${dlUrl(f.id)}`)}`;
 
     const btnDl = clone.querySelector('.btn-dl');
     btnDl.href = dlUrl(f.id);
-    btnDl.addEventListener('click', () => {
-      downloaded.add(f.id); saveMarks(); showToast('⬇️ מתחיל הורדה...');
-    });
+    btnDl.addEventListener('click', () => { downloaded.add(f.id); saveMarks(); showToast('⬇️ מתחיל הורדה...'); });
 
     const btnLike = clone.querySelector('.btn-like');
     btnLike.textContent = liked.has(f.id) ? '❤️' : '🤍';
@@ -449,29 +485,21 @@ function renderShiurim() {
 function cleanName(f) { return f.replace(/\.[^/.]+$/, ''); }
 function dlUrl(id)    { return `https://drive.google.com/uc?export=download&id=${id}`; }
 
-
-
 // ─── Player Page ──────────────────────────────────────────────────────────────
-let playerContext = null; // { rabbi, series } when known
+let playerContext = null;
 
-function playFile(f, list, context) {
+function playFile(f, list) {
   if (list) playList = list;
-  if (context) playerContext = context;
+  playerContext = navStack.map(n => n.name);
   playingId = f.id;
   openPlayerPage(f);
 }
 
 function openPlayerPage(f) {
   const page = document.getElementById('playerPage');
-  const audio = document.getElementById('ppFrame');
-  audio.src = `https://drive.google.com/uc?export=download&id=${f.id}`;
-  audio.load();
+  document.getElementById('ppFrame').src = `https://drive.google.com/file/d/${f.id}/preview`;
   document.getElementById('ppTitle').textContent = cleanName(f.name);
-
-  const crumbParts = [];
-  if (playerContext?.rabbi) crumbParts.push(playerContext.rabbi.name);
-  if (playerContext?.series) crumbParts.push(playerContext.series.name);
-  document.getElementById('ppCrumb').textContent = crumbParts.join(' › ');
+  document.getElementById('ppCrumb').textContent = (playerContext || []).join(' › ');
 
   page.style.display = 'flex';
   page.scrollTop = 0;
@@ -484,14 +512,10 @@ function updatePlayerPage(f) {
 
   document.getElementById('ppPrev').disabled = idx <= 0;
   document.getElementById('ppNext').disabled = idx < 0 || idx >= playList.length - 1;
-  document.getElementById('ppCounter').textContent =
-    playList.length ? `${idx + 1} / ${playList.length}` : '';
+  document.getElementById('ppCounter').textContent = playList.length ? `${idx + 1} / ${playList.length}` : '';
 
-  const dlBtn = document.getElementById('ppDl');
-  dlBtn.href = dlUrl(f.id);
-
-  const waBtn = document.getElementById('ppWa');
-  waBtn.href = `https://wa.me/?text=${encodeURIComponent(`${cleanName(f.name)}\n${dlUrl(f.id)}`)}`;
+  document.getElementById('ppDl').href = dlUrl(f.id);
+  document.getElementById('ppWa').href = `https://wa.me/?text=${encodeURIComponent(`${cleanName(f.name)}\n${dlUrl(f.id)}`)}`;
 
   const likeBtn = document.getElementById('ppLike');
   likeBtn.textContent = liked.has(f.id) ? '❤️ אהבתי' : '🤍 אהבתי';
@@ -511,9 +535,8 @@ function updatePlayerPage(f) {
     showToast(watched.has(f.id) ? '✅ סומן כנצפה' : '🔵 סומן כלא נצפה');
   };
 
-  // Sources (PDF)
-  const sourcesDiv   = document.getElementById('ppSources');
-  const sourceFrame  = document.getElementById('ppSourceFrame');
+  const sourcesDiv  = document.getElementById('ppSources');
+  const sourceFrame = document.getElementById('ppSourceFrame');
   if (f.sourceId) {
     sourceFrame.src = `https://drive.google.com/file/d/${f.sourceId}/preview`;
     sourcesDiv.style.display = 'block';
@@ -531,9 +554,7 @@ function updatePlayerPage(f) {
 }
 
 document.getElementById('ppClose').addEventListener('click', () => {
-  const audio = document.getElementById('ppFrame');
-  audio.pause();
-  audio.src = '';
+  document.getElementById('ppFrame').src = '';
   document.getElementById('playerPage').style.display = 'none';
   document.body.style.overflow = '';
   playingId = null;
@@ -541,8 +562,9 @@ document.getElementById('ppClose').addEventListener('click', () => {
 
 // ─── Download all ─────────────────────────────────────────────────────────────
 document.getElementById('dlAllBtn').addEventListener('click', () => {
-  if (!currentSeries) return;
-  const files = currentSeries.files.filter(f => f.id);
+  const folder = currentFolder();
+  if (!folder) return;
+  const files = (folder.files || []).filter(f => f.id);
   if (!files.length) return;
   showToast(`⬇️ מוריד ${files.length} שיעורים...`);
   files.forEach((f, i) => {
@@ -557,33 +579,23 @@ document.getElementById('dlAllBtn').addEventListener('click', () => {
 });
 
 // ─── Navigation events ────────────────────────────────────────────────────────
-document.getElementById('bcHome').addEventListener('click', showRabbis);
-document.getElementById('bcRabbi').addEventListener('click', () => {
-  if (currentRabbi) showSeries(currentRabbi);
-});
 document.getElementById('reloadBtn').addEventListener('click', () => {
-  // מציג מהקאש — מהיר. רענון מ-Apps Script רק דרך ⚙️ (מנהל)
   if (allData.length > 0) { showRabbis(); showToast('🔄 מציג נתונים שמורים'); }
   else fetchData(false);
 });
 document.getElementById('reloadOnError').addEventListener('click', () => fetchData(true));
+document.getElementById('logoArea').addEventListener('click', showRabbis);
+
+document.getElementById('mobileBackBtn').addEventListener('click', goBack);
 
 // ─── Global search ────────────────────────────────────────────────────────────
 function renderGlobalSearch() {
   const q = searchQuery.toLowerCase();
   const results = [];
-  allData.forEach(rabbi => {
-    rabbi.series.forEach(series => {
-      if (!series.files || series.files.length === 0) return;
-      series.files.forEach(f => {
-        if (cleanName(f.name).toLowerCase().includes(q)) {
-          results.push({ f, rabbi, series });
-        }
-      });
-    });
-  });
+  allData.forEach(rabbi => collectAllFilesFlat(rabbi, rabbi, results));
+  const filtered = results.filter(({ f }) => cleanName(f.name).toLowerCase().includes(q));
 
-  if (results.length === 0) {
+  if (filtered.length === 0) {
     document.getElementById('emptyMsg').textContent = 'לא נמצאו שיעורים';
     setView('empty'); return;
   }
@@ -593,7 +605,7 @@ function renderGlobalSearch() {
   list.innerHTML = '';
   const tmpl = document.getElementById('cardTemplate');
 
-  results.forEach(({ f, rabbi, series }) => {
+  filtered.forEach(({ f, rabbi, folder }) => {
     const clone = tmpl.content.cloneNode(true);
     const card  = clone.querySelector('.shiur-card');
 
@@ -601,13 +613,13 @@ function renderGlobalSearch() {
     if (watched.has(f.id))  card.classList.add('is-watched');
     if (playingId === f.id) card.classList.add('is-playing');
 
-    setPathBreadcrumb(clone.querySelector('.card-date'), rabbi, series);
+    clone.querySelector('.card-date').textContent  = rabbi.name + (folder.name !== rabbi.name ? ' › ' + folder.name : '');
     clone.querySelector('.card-title').textContent = cleanName(f.name);
     if (watched.has(f.id)) clone.querySelector('.watched-dot').style.display = 'block';
 
     const btnPlay = clone.querySelector('.btn-play');
     if (playingId === f.id) { btnPlay.textContent = '⏸ מושמע'; btnPlay.classList.add('playing'); }
-    btnPlay.addEventListener('click', () => playFile(f, results.map(r => r.f), { rabbi, series }));
+    btnPlay.addEventListener('click', () => playFile(f, filtered.map(r => r.f)));
 
     const btnDl = clone.querySelector('.btn-dl');
     btnDl.href = dlUrl(f.id);
@@ -638,34 +650,15 @@ function renderGlobalSearch() {
   });
 }
 
-// helper: clickable rabbi › series path
-function setPathBreadcrumb(el, rabbi, series) {
-  el.innerHTML = '';
-  const r = document.createElement('button');
-  r.className = 'path-btn'; r.textContent = rabbi.name;
-  r.addEventListener('click', e => { e.stopPropagation(); showSeries(rabbi); });
-  const sep = document.createTextNode(' › ');
-  const s = document.createElement('button');
-  s.className = 'path-btn'; s.textContent = series.name;
-  s.addEventListener('click', e => { e.stopPropagation(); currentRabbi = rabbi; showShiurim(series); });
-  el.append(r, sep, s);
-}
-
-// ─── Series search (cross-rabbi) ─────────────────────────────────────────────
-function renderSeriesSearch() {
+// ─── Folder search (cross-rabbi) ─────────────────────────────────────────────
+function renderFolderSearch() {
   const q = searchQuery.toLowerCase();
   const results = [];
-  allData.forEach(rabbi => {
-    rabbi.series.forEach(series => {
-      if (series.files && series.files.length > 0 &&
-          series.name.toLowerCase().includes(q)) {
-        results.push({ rabbi, series });
-      }
-    });
-  });
+  allData.forEach(rabbi => collectAllFoldersFlat(rabbi, rabbi, results));
+  const filtered = results.filter(({ folder }) => folder.name.toLowerCase().includes(q));
 
-  if (results.length === 0) {
-    document.getElementById('emptyMsg').textContent = 'לא נמצאו סדרות';
+  if (filtered.length === 0) {
+    document.getElementById('emptyMsg').textContent = 'לא נמצאו תיקיות';
     setView('empty'); return;
   }
 
@@ -673,11 +666,11 @@ function renderSeriesSearch() {
   const grid = document.getElementById('seriesGrid');
   grid.innerHTML = '';
 
-  results.forEach(({ rabbi, series }) => {
-    const total   = series.files.length;
-    const doneNum = series.files.filter(f => watched.has(f.id)).length;
+  filtered.forEach(({ folder, rabbi }) => {
+    const total   = countFilesInFolder(folder);
+    const doneNum = countWatchedInFolder(folder);
     const pct     = total ? Math.round((doneNum / total) * 100) : 0;
-    const initial = series.name.charAt(0) || '?';
+    const initial = folder.name.charAt(0) || '?';
 
     const card = document.createElement('div');
     card.className = 'grid-card';
@@ -687,53 +680,73 @@ function renderSeriesSearch() {
       </div>
       <div class="grid-card-body">
         <div class="series-search-rabbi">${rabbi.name}</div>
-        <div class="grid-card-name">${series.name}</div>
+        <div class="grid-card-name">${folder.name}</div>
         <div class="grid-card-meta">
           <strong>${total}</strong> שיעורים
           ${doneNum ? `· <span style="color:var(--green)">✅ ${doneNum}</span>` : ''}
         </div>
         <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
       </div>`;
-    card.addEventListener('click', () => { currentRabbi = rabbi; showShiurim(series); });
+    card.addEventListener('click', () => {
+      // נווט ישירות לתיקייה עם ה-navStack הנכון
+      navStack = [rabbi];
+      openFolder(folder);
+    });
     grid.appendChild(card);
   });
 }
 
-// ─── Favorites ───────────────────────────────────────────────────────────────
+// ─── Favorites ────────────────────────────────────────────────────────────────
 function renderFavorites() {
   const results = [];
-  allData.forEach(rabbi => {
-    rabbi.series.forEach(series => {
-      (series.files || []).forEach(f => {
-        if (liked.has(f.id)) results.push({ f, rabbi, series });
-      });
-    });
-  });
+  allData.forEach(rabbi => collectAllFilesFlat(rabbi, rabbi, results));
+  const filtered = results.filter(({ f }) => liked.has(f.id));
 
-  if (results.length === 0) {
+  if (filtered.length === 0) {
     document.getElementById('emptyMsg').textContent = 'אין שיעורים מועדפים עדיין — לחץ ❤️ על שיעור כדי להוסיף';
     setView('empty'); return;
   }
 
   setView('favorites');
+  renderFileList(filtered, renderFavorites);
+}
+
+// ─── Downloads history ────────────────────────────────────────────────────────
+function renderDownloaded() {
+  const results = [];
+  allData.forEach(rabbi => collectAllFilesFlat(rabbi, rabbi, results));
+  const filtered = results.filter(({ f }) => downloaded.has(f.id));
+
+  if (filtered.length === 0) {
+    document.getElementById('emptyMsg').textContent = 'לא הורדת שיעורים עדיין';
+    setView('empty'); return;
+  }
+
+  setView('downloads');
+  renderFileList(filtered, renderDownloaded);
+}
+
+// פונקציית עזר לרינדור רשימת קבצים (מועדפים / הורדות)
+function renderFileList(items, rerender) {
   const list = document.getElementById('shiurimList');
   list.innerHTML = '';
   const tmpl = document.getElementById('cardTemplate');
 
-  results.forEach(({ f, rabbi, series }) => {
+  items.forEach(({ f, rabbi, folder }) => {
     const clone = tmpl.content.cloneNode(true);
     const card  = clone.querySelector('.shiur-card');
-    card.classList.add('is-liked');
-    if (watched.has(f.id)) card.classList.add('is-watched');
+
+    if (liked.has(f.id))    card.classList.add('is-liked');
+    if (watched.has(f.id))  card.classList.add('is-watched');
     if (playingId === f.id) card.classList.add('is-playing');
 
-    setPathBreadcrumb(clone.querySelector('.card-date'), rabbi, series);
+    clone.querySelector('.card-date').textContent  = rabbi.name + (folder.name !== rabbi.name ? ' › ' + folder.name : '');
     clone.querySelector('.card-title').textContent = cleanName(f.name);
     if (watched.has(f.id)) clone.querySelector('.watched-dot').style.display = 'block';
 
     const btnPlay = clone.querySelector('.btn-play');
     if (playingId === f.id) { btnPlay.textContent = '⏸ מושמע'; btnPlay.classList.add('playing'); }
-    btnPlay.addEventListener('click', () => playFile(f, results.map(r => r.f), { rabbi, series }));
+    btnPlay.addEventListener('click', () => playFile(f, items.map(r => r.f)));
 
     const btnDl = clone.querySelector('.btn-dl');
     btnDl.href = dlUrl(f.id);
@@ -743,72 +756,11 @@ function renderFavorites() {
     btnWa.href = `https://wa.me/?text=${encodeURIComponent(`${cleanName(f.name)}\n${dlUrl(f.id)}`)}`;
 
     const btnLike = clone.querySelector('.btn-like');
-    btnLike.textContent = '❤️'; btnLike.classList.add('active');
-    btnLike.addEventListener('click', () => {
-      liked.delete(f.id); saveMarks(); showToast('💔 הוסר מהמועדפים'); renderFavorites();
-    });
-
-    const btnW = clone.querySelector('.btn-watched');
-    btnW.textContent = watched.has(f.id) ? '✅' : '☐';
-    if (watched.has(f.id)) btnW.classList.add('active');
-    btnW.addEventListener('click', () => {
-      watched.has(f.id) ? watched.delete(f.id) : watched.add(f.id);
-      saveMarks(); renderFavorites();
-    });
-
-    list.appendChild(clone);
-  });
-}
-
-// ─── Downloads history ────────────────────────────────────────────────────────
-function renderDownloaded() {
-  const results = [];
-  allData.forEach(rabbi => {
-    rabbi.series.forEach(series => {
-      (series.files || []).forEach(f => {
-        if (downloaded.has(f.id)) results.push({ f, rabbi, series });
-      });
-    });
-  });
-
-  if (results.length === 0) {
-    document.getElementById('emptyMsg').textContent = 'לא הורדת שיעורים עדיין';
-    setView('empty'); return;
-  }
-
-  setView('downloads');
-  const list = document.getElementById('shiurimList');
-  list.innerHTML = '';
-  const tmpl = document.getElementById('cardTemplate');
-
-  results.forEach(({ f, rabbi, series }) => {
-    const clone = tmpl.content.cloneNode(true);
-    const card  = clone.querySelector('.shiur-card');
-    if (liked.has(f.id))    card.classList.add('is-liked');
-    if (watched.has(f.id))  card.classList.add('is-watched');
-    if (playingId === f.id) card.classList.add('is-playing');
-
-    setPathBreadcrumb(clone.querySelector('.card-date'), rabbi, series);
-    clone.querySelector('.card-title').textContent = cleanName(f.name);
-    if (watched.has(f.id)) clone.querySelector('.watched-dot').style.display = 'block';
-
-    const btnPlay = clone.querySelector('.btn-play');
-    if (playingId === f.id) { btnPlay.textContent = '⏸ מושמע'; btnPlay.classList.add('playing'); }
-    btnPlay.addEventListener('click', () => playFile(f, results.map(r => r.f), { rabbi, series }));
-
-    const btnDl = clone.querySelector('.btn-dl');
-    btnDl.href = dlUrl(f.id);
-    btnDl.addEventListener('click', () => showToast('⬇️ מתחיל הורדה...'));
-
-    const btnWa = clone.querySelector('.btn-wa');
-    btnWa.href = `https://wa.me/?text=${encodeURIComponent(`${cleanName(f.name)}\n${dlUrl(f.id)}`)}`;
-
-    const btnLike = clone.querySelector('.btn-like');
     btnLike.textContent = liked.has(f.id) ? '❤️' : '🤍';
     if (liked.has(f.id)) btnLike.classList.add('active');
     btnLike.addEventListener('click', () => {
       liked.has(f.id) ? liked.delete(f.id) : liked.add(f.id);
-      saveMarks(); renderDownloaded();
+      saveMarks(); rerender();
     });
 
     const btnW = clone.querySelector('.btn-watched');
@@ -816,7 +768,7 @@ function renderDownloaded() {
     if (watched.has(f.id)) btnW.classList.add('active');
     btnW.addEventListener('click', () => {
       watched.has(f.id) ? watched.delete(f.id) : watched.add(f.id);
-      saveMarks(); renderDownloaded();
+      saveMarks(); rerender();
     });
 
     list.appendChild(clone);
@@ -824,13 +776,12 @@ function renderDownloaded() {
 }
 
 document.getElementById('favoritesBtn').addEventListener('click', () => {
-  currentRabbi = null; currentSeries = null; searchQuery = '';
+  navStack = []; searchQuery = '';
   document.getElementById('searchInput').value = '';
   renderFavorites();
 });
-
 document.getElementById('downloadsBtn').addEventListener('click', () => {
-  currentRabbi = null; currentSeries = null; searchQuery = '';
+  navStack = []; searchQuery = '';
   document.getElementById('searchInput').value = '';
   renderDownloaded();
 });
@@ -838,18 +789,17 @@ document.getElementById('downloadsBtn').addEventListener('click', () => {
 // ─── Search ───────────────────────────────────────────────────────────────────
 function runSearch() {
   if (!searchQuery.trim()) {
-    if (currentSeries)     renderShiurim();
-    else if (currentRabbi) renderSeries();
-    else                   renderRabbis();
+    if (navStack.length > 0) renderFolderContents();
+    else                     renderRabbis();
     return;
   }
   if (searchScope === 'rabbis') {
-    currentRabbi = null; currentSeries = null;
-    renderRabbis();          // renderRabbis already filters by searchQuery
+    navStack = [];
+    renderRabbis();
   } else if (searchScope === 'series') {
-    renderSeriesSearch();
+    renderFolderSearch();
   } else {
-    renderGlobalSearch();    // search shiurim names
+    renderGlobalSearch();
   }
 }
 
@@ -857,11 +807,9 @@ document.getElementById('searchInput').addEventListener('input', e => {
   searchQuery = e.target.value;
   runSearch();
 });
-
 document.getElementById('searchScope').addEventListener('change', e => {
   searchScope = e.target.value;
-  // Update placeholder
-  const ph = { all: 'חיפוש שיעור...', rabbis: 'חיפוש רב...', series: 'חיפוש סדרה...' };
+  const ph = { all: 'חיפוש שיעור...', rabbis: 'חיפוש רב...', series: 'חיפוש תיקייה...' };
   document.getElementById('searchInput').placeholder = ph[searchScope] || 'חיפוש...';
   if (searchQuery.trim()) runSearch();
 });
@@ -914,43 +862,28 @@ document.getElementById('settingsSave').addEventListener('click', () => {
   showToast('✅ ההגדרות נשמרו');
 });
 
-// ─── Admin: sync from Drive ───────────────────────────────────────────────────
-document.getElementById('syncDriveBtn').addEventListener('click', async () => {
-  const btn    = document.getElementById('syncDriveBtn');
+// ─── Admin: share all files ───────────────────────────────────────────────────
+document.getElementById('shareFilesBtn').addEventListener('click', async () => {
+  const btn    = document.getElementById('shareFilesBtn');
   const status = document.getElementById('syncStatus');
   btn.disabled    = true;
-  btn.textContent = '⏳ טוען מ-Drive...';
+  btn.textContent = '⏳ משתף קבצים...';
   status.textContent = '';
   status.style.color = '';
   try {
-    const res = await fetch(SCRIPT_URL);
+    const res = await fetch(SCRIPT_URL + '?action=share');
     if (!res.ok) throw new Error('שגיאת שרת ' + res.status);
-    const raw  = await res.json();
-    if (raw.error) throw new Error(raw.error);
-    const data = parseAndFilter(raw);
-    if (data.length === 0) throw new Error('לא נמצאו שיעורים');
-    localStorage.setItem(DATA_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
-    allData = data;
-    const total = data.reduce((n, r) => n + r.series.reduce((m, s) => m + s.files.length, 0), 0);
-    status.textContent = '✅ עודכן! ' + total + ' שיעורים נטענו';
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    status.textContent = '✅ ' + (data.msg || 'שיתוף הושלם — הקבצים נגישים לציבור');
     status.style.color = 'var(--green)';
-    if (['rabbis','error','loading','empty'].includes(view)) showRabbis();
   } catch(e) {
     status.textContent = '❌ ' + e.message;
     status.style.color = 'var(--red)';
   } finally {
     btn.disabled    = false;
-    btn.textContent = '🔄 רענן שיעורים מ-Drive';
+    btn.textContent = '🔓 שתף קבצים לציבור';
   }
-});
-
-// ─── Logo → home ─────────────────────────────────────────────────────────────
-document.getElementById('logoArea').addEventListener('click', showRabbis);
-
-// ─── Mobile back button ───────────────────────────────────────────────────────
-document.getElementById('mobileBackBtn').addEventListener('click', () => {
-  if (view === 'shiurim')  showSeries(currentRabbi);
-  else                     showRabbis();
 });
 
 // ─── About page ───────────────────────────────────────────────────────────────
@@ -1007,7 +940,6 @@ function renderAboutPage(editing) {
         <button id="aEditCancel" class="about-cancel-btn">ביטול</button>
       </div>
     `;
-    // Set values after render (avoids HTML-escape issues)
     document.getElementById('aEditTitle').value    = data.title;
     document.getElementById('aEditP1').value       = data.p1;
     document.getElementById('aEditP2').value       = data.p2;
@@ -1029,7 +961,6 @@ function renderAboutPage(editing) {
     document.getElementById('aEditCancel').addEventListener('click', () => renderAboutPage(false));
 
   } else {
-    // View mode
     const mapHtml = data.location ? `
       <div class="about-map-wrap">
         <iframe class="about-map-frame"
@@ -1041,8 +972,8 @@ function renderAboutPage(editing) {
       <div class="about-logo-wrap"><img src="dror-logo.png" class="about-logo" alt="לוגו" /></div>
       <h1 class="about-title">${esc(data.title)}</h1>
       <div class="about-content">
-        ${data.p1      ? `<p>${esc(data.p1)}</p>`                                      : ''}
-        ${data.p2      ? `<p>${esc(data.p2)}</p>`                                      : ''}
+        ${data.p1      ? `<p>${esc(data.p1)}</p>` : ''}
+        ${data.p2      ? `<p>${esc(data.p2)}</p>` : ''}
         ${data.contact ? `<hr class="about-divider"/><p class="about-contact">${esc(data.contact)}</p>` : ''}
       </div>
       ${data.location ? `

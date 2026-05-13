@@ -8,33 +8,33 @@ const ROOT_FOLDER_ID = 'הכנס כאן את ה-ID של התיקייה הראש�
 const AUDIO_EXTS = ['mp3', 'm4a', 'wav', 'ogg', 'aac', 'mp4', 'mpeg', 'flac'];
 
 // ─── נקודת כניסה ─────────────────────────────────────────────────────────────
-function doGet() {
+function doGet(e) {
+  // action=share — שיתוף כל הקבצים
+  if (e && e.parameter && e.parameter.action === 'share') {
+    try {
+      shareFolderRecursive(DriveApp.getFolderById(ROOT_FOLDER_ID));
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: true, msg: 'שיתוף הושלם' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch(err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ error: err.message }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   try {
     var root   = DriveApp.getFolderById(ROOT_FOLDER_ID);
     var result = [];
 
     var rabbiIt = root.getFolders();
     while (rabbiIt.hasNext()) {
-      var rabbiFolder = rabbiIt.next();
-      var seriesList  = [];
-
-      // קבצים ישירים תחת תיקיית הרב → סדרה "כללי"
-      var directFiles = getAudioFiles(rabbiFolder);
-      if (directFiles.length > 0) {
-        seriesList.push({ id: rabbiFolder.getId() + '_root', name: 'כללי', files: directFiles });
-      }
-
-      // רקורסיה לכל תת-תיקיות בכל עומק
-      // כל תיקייה שמכילה קבצי אודיו → סדרה בשמה שלה
-      var subIt = rabbiFolder.getFolders();
-      while (subIt.hasNext()) {
-        collectSeries(subIt.next(), seriesList);
-      }
-
-      if (seriesList.length > 0) {
-        result.push({ id: rabbiFolder.getId(), name: rabbiFolder.getName(), series: seriesList });
-      }
+      var node = buildTree(rabbiIt.next());
+      if (node) result.push(node);
     }
+
+    // מיון רבנים לפי שם
+    result.sort(function(a, b) { return a.name.localeCompare(b.name, 'he'); });
 
     return ContentService
       .createTextOutput(JSON.stringify(result))
@@ -47,21 +47,29 @@ function doGet() {
   }
 }
 
-// ─── רקורסיה: כל תיקייה שיש בה קבצי אודיו → סדרה בשמה ──────────────────────
-function collectSeries(folder, seriesList) {
-  var files = getAudioFiles(folder);
-  if (files.length > 0) {
-    seriesList.push({
-      id:    folder.getId(),
-      name:  folder.getName(),   // שם התיקייה בלבד, לא נתיב מלא
-      files: files
-    });
-  }
-  // המשך לתת-תיקיות בכל עומק
+// ─── בניית עץ תיקיות רקורסיבי — שומר על המבנה המלא כמו ב-Drive ────────────────
+function buildTree(folder) {
+  var files     = getAudioFiles(folder);
+  var subFolders = [];
+
   var subIt = folder.getFolders();
   while (subIt.hasNext()) {
-    collectSeries(subIt.next(), seriesList);
+    var child = buildTree(subIt.next());
+    if (child) subFolders.push(child);
   }
+
+  // החזר null אם אין קבצים בכלל (כולל עומק)
+  if (files.length === 0 && subFolders.length === 0) return null;
+
+  // מיון תת-תיקיות לפי שם
+  subFolders.sort(function(a, b) { return a.name.localeCompare(b.name, 'he'); });
+
+  return {
+    id:      folder.getId(),
+    name:    folder.getName(),
+    files:   files,
+    folders: subFolders
+  };
 }
 
 // ─── שליפת קבצי אודיו מתיקייה (ישירים בלבד, ללא ירידה) ───────────────────────
