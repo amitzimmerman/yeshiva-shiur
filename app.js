@@ -463,7 +463,9 @@ function playFile(f, list, context) {
 
 function openPlayerPage(f) {
   const page = document.getElementById('playerPage');
-  document.getElementById('ppFrame').src = `https://drive.google.com/file/d/${f.id}/preview`;
+  const audio = document.getElementById('ppFrame');
+  audio.src = `https://drive.google.com/uc?export=download&id=${f.id}`;
+  audio.load();
   document.getElementById('ppTitle').textContent = cleanName(f.name);
 
   const crumbParts = [];
@@ -529,7 +531,9 @@ function updatePlayerPage(f) {
 }
 
 document.getElementById('ppClose').addEventListener('click', () => {
-  document.getElementById('ppFrame').src = '';
+  const audio = document.getElementById('ppFrame');
+  audio.pause();
+  audio.src = '';
   document.getElementById('playerPage').style.display = 'none';
   document.body.style.overflow = '';
   playingId = null;
