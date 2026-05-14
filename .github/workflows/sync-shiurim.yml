@@ -16,15 +16,31 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Fetch from Apps Script
+        env:
+          SCRIPT_URL: ${{ secrets.SCRIPT_URL }}
         run: |
-          echo "📥 מושך נתונים מ-Apps Script..."
-          curl -fsSL --max-time 120 -o data.json "${{ secrets.SCRIPT_URL }}"
+          # נקה רווחים ושורות חדשות מהקישור
+          CLEAN_URL=$(printf '%s' "$SCRIPT_URL" | tr -d '[:space:]')
+          echo "URL length: ${#CLEAN_URL}"
+          echo "URL prefix: ${CLEAN_URL:0:50}"
+          if [ -z "$CLEAN_URL" ]; then
+            echo "❌ SCRIPT_URL ריק!"
+            exit 1
+          fi
+          curl -fsSL --max-time 120 -o data.json "$CLEAN_URL"
           echo "✅ הקובץ נשמר"
 
       - name: Validate JSON
         run: |
           python3 - <<'EOF'
           import json, sys
+
+          def count_files(node):
+              n = len(node.get('files', []))
+              for sub in node.get('folders', []):
+                  n += count_files(sub)
+              return n
+
           try:
               data = json.load(open('data.json'))
           except Exception as e:
@@ -36,7 +52,7 @@ jobs:
           if not isinstance(data, list) or len(data) == 0:
               print("❌ נתונים ריקים")
               sys.exit(1)
-          total = sum(len(f.get('files', [])) for r in data for f in r.get('series', []))
+          total = sum(count_files(r) for r in data)
           print(f"✅ {len(data)} רבנים, {total} שיעורים")
           EOF
 
