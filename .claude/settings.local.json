@@ -16,7 +16,10 @@
       "mcp__Claude_Preview__preview_start",
       "Bash(git pull *)",
       "Bash(git stash *)",
-      "Bash(git revert *)"
+      "Bash(git revert *)",
+      "WebFetch(domain:yeshiva-dror.netlify.app)",
+      "PowerShell(\\(Get-Item \"C:\\\\Users\\\\amitz\\\\Desktop\\\\shiur\\\\data.json\"\\).Length / 1KB)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

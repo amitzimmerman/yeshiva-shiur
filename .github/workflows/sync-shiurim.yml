@@ -27,7 +27,7 @@ jobs:
             echo "❌ SCRIPT_URL ריק!"
             exit 1
           fi
-          curl -fsSL --max-time 120 -o data.json "$CLEAN_URL"
+          curl -fsSL --max-time 300 -o data.json "$CLEAN_URL"
           echo "✅ הקובץ נשמר"
 
       - name: Validate JSON
