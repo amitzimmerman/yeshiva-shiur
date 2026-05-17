@@ -63,52 +63,6 @@ const AUTH_TTL = 30 * 60 * 1000;
   document.getElementById('authInput').addEventListener('keydown', e => { if (e.key === 'Enter') check(); });
 })();
 
-// ─── Audio offline cache ──────────────────────────────────────────────────────
-const AUDIO_CACHE_NAME = 'dror-audio-v1';
-const cachedFileIds    = new Set();   // IDs שמורים — מתעדכן ב-initAudioCache()
-let   currentBlobUrl   = null;        // Blob URL של הנגן הנוכחי
-
-function audioKey(id) { return `https://dror-audio-cache/${id}`; }
-
-async function initAudioCache() {
-  if (!('caches' in window)) return;
-  try {
-    const cache = await caches.open(AUDIO_CACHE_NAME);
-    const keys  = await cache.keys();
-    keys.forEach(req => cachedFileIds.add(req.url.replace('https://dror-audio-cache/', '')));
-  } catch(_) {}
-}
-
-async function cacheAudioFile(id) {
-  if (!('caches' in window)) return false;
-  try {
-    const res = await fetch(dlUrl(id));
-    if (!res.ok) return false;
-    const cache = await caches.open(AUDIO_CACHE_NAME);
-    await cache.put(audioKey(id), res);
-    cachedFileIds.add(id);
-    return true;
-  } catch(_) { return false; }
-}
-
-async function removeCachedAudio(id) {
-  if (!('caches' in window)) return;
-  try {
-    const cache = await caches.open(AUDIO_CACHE_NAME);
-    await cache.delete(audioKey(id));
-    cachedFileIds.delete(id);
-  } catch(_) {}
-}
-
-async function getCachedBlobUrl(id) {
-  try {
-    const cache = await caches.open(AUDIO_CACHE_NAME);
-    const res   = await cache.match(audioKey(id));
-    if (!res) return null;
-    return URL.createObjectURL(await res.blob());
-  } catch(_) { return null; }
-}
-
 // ─── Marks ────────────────────────────────────────────────────────────────────
 let liked      = new Set(JSON.parse(localStorage.getItem('liked')      || '[]'));
 let watched    = new Set(JSON.parse(localStorage.getItem('watched')    || '[]'));
@@ -504,34 +458,9 @@ function renderShiurim() {
     const btnWa = clone.querySelector('.btn-wa');
     btnWa.href = `https://wa.me/?text=${encodeURIComponent(`${cleanName(f.name)}\n${dlUrl(f.id)}`)}`;
 
-    // אינדיקטור אופליין
-    const fileIcon = clone.querySelector('.file-icon');
-    if (cachedFileIds.has(f.id)) fileIcon.textContent = '📥';
-
-    // ⬇ טלפון — הורדה לתיקיית ההורדות
     const btnDl = clone.querySelector('.btn-dl');
     btnDl.href = dlUrl(f.id);
-    btnDl.addEventListener('click', () => { downloaded.add(f.id); saveMarks(); showToast('⬇️ מוריד לטלפון...'); });
-
-    // 📥 אפליקציה — שמירה לcache לאופליין
-    const btnCache = clone.querySelector('.btn-cache');
-    if (cachedFileIds.has(f.id)) {
-      btnCache.textContent = '🗑 מחק';
-      btnCache.addEventListener('click', async () => {
-        await removeCachedAudio(f.id);
-        showToast('🗑 הוסר מהאחסון');
-        renderShiurim();
-      });
-    } else {
-      btnCache.addEventListener('click', async () => {
-        showToast('⬇️ שומר לאפליקציה...');
-        btnCache.disabled = true;
-        const ok = await cacheAudioFile(f.id);
-        btnCache.disabled = false;
-        if (ok) { showToast('✅ נשמר — ניתן להאזין אופליין'); renderShiurim(); }
-        else    { showToast('❌ שמירה נכשלה — בדוק חיבור'); }
-      });
-    }
+    btnDl.addEventListener('click', () => { downloaded.add(f.id); saveMarks(); showToast('⬇️ מתחיל הורדה...'); });
 
     const btnLike = clone.querySelector('.btn-like');
     btnLike.textContent = liked.has(f.id) ? '❤️' : '🤍';
@@ -550,12 +479,6 @@ function renderShiurim() {
       showToast(watched.has(f.id) ? '✅ סומן כנצפה' : '🔵 סומן כלא נצפה');
       saveMarks(); renderShiurim();
     });
-
-    const btnSave = clone.querySelector('.btn-save-offline');
-    if (btnSave) {
-      if (downloaded.has(f.id)) { btnSave.textContent = '✅'; btnSave.classList.add('active'); }
-      btnSave.addEventListener('click', () => saveOffline(f));
-    }
 
     list.appendChild(clone);
   });
@@ -583,34 +506,11 @@ async function openPlayerPage(f) {
   document.getElementById('ppTitle').textContent = cleanName(f.name);
   document.getElementById('ppCrumb').textContent = (playerContext || []).join(' › ');
 
-  // נקה Blob URL קודם
-  if (currentBlobUrl) { URL.revokeObjectURL(currentBlobUrl); currentBlobUrl = null; }
-
-  if (cachedFileIds.has(f.id)) {
-    // הקובץ שמור — נגן מהcache
-    const blobUrl = await getCachedBlobUrl(f.id);
-    if (blobUrl) {
-      currentBlobUrl = blobUrl;
-      frame.src = '';
-      frame.style.display = 'none';
-      audio.src = blobUrl;
-      audio.style.display = 'block';
-      audio.load();
-      audio.play().catch(() => {});
-    } else {
-      // cache פגום — fallback ל-iframe
-      frame.src = `https://drive.google.com/file/d/${f.id}/preview`;
-      frame.style.display = 'block';
-      audio.style.display = 'none';
-    }
-  } else {
-    // אונליין — iframe רגיל
-    frame.src = `https://drive.google.com/file/d/${f.id}/preview`;
-    frame.style.display = 'block';
-    audio.pause();
-    audio.src = '';
-    audio.style.display = 'none';
-  }
+  frame.src = `https://drive.google.com/file/d/${f.id}/preview`;
+  frame.style.display = 'block';
+  audio.pause();
+  audio.src = '';
+  audio.style.display = 'none';
 
   page.style.display = 'flex';
   page.scrollTop = 0;
@@ -670,7 +570,6 @@ document.getElementById('ppClose').addEventListener('click', () => {
   audio.pause();
   audio.src = '';
   audio.style.display = 'none';
-  if (currentBlobUrl) { URL.revokeObjectURL(currentBlobUrl); currentBlobUrl = null; }
   document.getElementById('playerPage').style.display = 'none';
   document.body.style.overflow = '';
   playingId = null;
@@ -761,12 +660,6 @@ function renderGlobalSearch() {
       showToast(watched.has(f.id) ? '✅ סומן כנצפה' : '🔵 סומן כלא נצפה');
       saveMarks(); renderGlobalSearch();
     });
-
-    const btnSaveG = clone.querySelector('.btn-save-offline');
-    if (btnSaveG) {
-      if (downloaded.has(f.id)) { btnSaveG.textContent = '✅'; btnSaveG.classList.add('active'); }
-      btnSaveG.addEventListener('click', () => saveOffline(f));
-    }
 
     list.appendChild(clone);
   });
@@ -892,12 +785,6 @@ function renderFileList(items, rerender) {
       watched.has(f.id) ? watched.delete(f.id) : watched.add(f.id);
       saveMarks(); rerender();
     });
-
-    const btnSave = clone.querySelector('.btn-save-offline');
-    if (btnSave) {
-      if (downloaded.has(f.id)) { btnSave.textContent = '✅'; btnSave.classList.add('active'); }
-      btnSave.addEventListener('click', () => saveOffline(f));
-    }
 
     list.appendChild(clone);
   });
@@ -1144,21 +1031,8 @@ document.getElementById('installBtn').addEventListener('click', async () => {
   deferredInstallPrompt = null;
 });
 
-// ─── Offline save (native download) ──────────────────────────────────────────
-function saveOffline(f) {
-  const a = document.createElement('a');
-  a.href = dlUrl(f.id);
-  a.download = cleanName(f.name) + '.mp3';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  downloaded.add(f.id);
-  saveMarks();
-  showToast('⬇️ מוריד לטלפון — ניתן להאזין בלי אינטרנט מתיקיית ההורדות');
-}
-
 // ─── Init ─────────────────────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
-initAudioCache().then(() => fetchData());
+fetchData();
