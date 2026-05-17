@@ -504,28 +504,30 @@ function renderShiurim() {
     const btnWa = clone.querySelector('.btn-wa');
     btnWa.href = `https://wa.me/?text=${encodeURIComponent(`${cleanName(f.name)}\n${dlUrl(f.id)}`)}`;
 
-    // כפתור הורדה — שומר לcache לאופליין
+    // אינדיקטור אופליין
     const fileIcon = clone.querySelector('.file-icon');
     if (cachedFileIds.has(f.id)) fileIcon.textContent = '📥';
 
+    // ⬇ טלפון — הורדה לתיקיית ההורדות
     const btnDl = clone.querySelector('.btn-dl');
-    btnDl.removeAttribute('href');
-    btnDl.style.cursor = 'pointer';
+    btnDl.href = dlUrl(f.id);
+    btnDl.addEventListener('click', () => { downloaded.add(f.id); saveMarks(); showToast('⬇️ מוריד לטלפון...'); });
+
+    // 📥 אפליקציה — שמירה לcache לאופליין
+    const btnCache = clone.querySelector('.btn-cache');
     if (cachedFileIds.has(f.id)) {
-      btnDl.textContent = '🗑 מחק';
-      btnDl.addEventListener('click', async () => {
+      btnCache.textContent = '🗑 מחק';
+      btnCache.addEventListener('click', async () => {
         await removeCachedAudio(f.id);
         showToast('🗑 הוסר מהאחסון');
         renderShiurim();
       });
     } else {
-      btnDl.textContent = '⬇ הורד';
-      btnDl.addEventListener('click', async () => {
-        downloaded.add(f.id); saveMarks();
-        showToast('⬇️ מוריד ושומר לאופליין...');
-        btnDl.disabled = true;
+      btnCache.addEventListener('click', async () => {
+        showToast('⬇️ שומר לאפליקציה...');
+        btnCache.disabled = true;
         const ok = await cacheAudioFile(f.id);
-        btnDl.disabled = false;
+        btnCache.disabled = false;
         if (ok) { showToast('✅ נשמר — ניתן להאזין אופליין'); renderShiurim(); }
         else    { showToast('❌ שמירה נכשלה — בדוק חיבור'); }
       });
