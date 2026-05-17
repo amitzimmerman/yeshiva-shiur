@@ -122,20 +122,27 @@ function showToast(msg) {
 const DATA_CACHE_KEY = 'shiurim_cache_v2';  // v2 = מבנה עץ חדש
 const CACHE_TTL = 6 * 60 * 60 * 1000;
 
-function parseAndFilter(data) {
-  if (!Array.isArray(data)) throw new Error('תגובה לא תקינה');
-  return data.filter(r => countFilesInFolder(r) > 0);
+// תמיכה בשני פורמטים: ישן (series) וחדש (folders)
+function normalizeNode(node) {
+  if (!node) return node;
+  // המרת 'series' ל-'folders' לתאימות לאחור
+  if (node.series && !node.folders) {
+    node.folders = (node.series || []).map(s => normalizeNode(s));
+    delete node.series;
+  }
+  if (!node.folders) node.folders = [];
+  if (!node.files)   node.files   = [];
+  node.folders = node.folders.map(f => normalizeNode(f));
+  return node;
 }
 
-async function fetchFromNetwork() {
-  const res = await fetch(SCRIPT_URL);
-  if (!res.ok) throw new Error(`שגיאת שרת ${res.status}`);
-  const data = parseAndFilter(await res.json());
-  localStorage.setItem(DATA_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
-  return data;
+function parseAndFilter(data) {
+  if (!Array.isArray(data)) throw new Error('תגובה לא תקינה');
+  return data.map(normalizeNode).filter(r => countFilesInFolder(r) > 0);
 }
 
 async function fetchData(forceRefresh = false) {
+  // שלב 1: אם יש Cache תקין — הצג מיד
   if (!forceRefresh) {
     try {
       const raw = localStorage.getItem(DATA_CACHE_KEY);
@@ -144,6 +151,7 @@ async function fetchData(forceRefresh = false) {
         if (data && data.length > 0) {
           allData = data;
           showRabbis();
+          // רענן ברקע אם Cache ישן
           if (!ts || Date.now() - ts > CACHE_TTL) refreshFromDataJson();
           return;
         }
@@ -151,34 +159,29 @@ async function fetchData(forceRefresh = false) {
     } catch(_) {}
   }
 
+  // שלב 2: אין Cache — טען מ-data.json
   setView('loading');
+  document.getElementById('loadingMsg').textContent = 'טוען שיעורים...';
 
   try {
     const url = 'data.json' + (forceRefresh ? '?t=' + Date.now() : '');
     const res = await fetch(url);
-    if (res.ok) {
-      const data = parseAndFilter(await res.json());
-      if (data.length > 0) {
-        allData = data;
-        localStorage.setItem(DATA_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
-        showRabbis();
-        return;
-      }
-    }
-  } catch(_) {}
-
-  try {
-    allData = await fetchFromNetwork();
-    if (allData.length === 0) throw new Error('לא נמצאו שיעורים');
-    localStorage.setItem(DATA_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: allData }));
+    if (!res.ok) throw new Error(`שגיאת שרת ${res.status}`);
+    const data = parseAndFilter(await res.json());
+    if (data.length === 0) throw new Error('לא נמצאו שיעורים');
+    allData = data;
+    try { localStorage.setItem(DATA_CACHE_KEY, JSON.stringify({ ts: Date.now(), data })); } catch(_) {}
     showRabbis();
+    return;
   } catch(e) {
+    // נסה Cache ישן לפני שמציג שגיאה
     try {
       const raw = localStorage.getItem(DATA_CACHE_KEY);
       if (raw) {
         const { data } = JSON.parse(raw);
         if (data && data.length > 0) {
-          allData = data; showRabbis();
+          allData = data;
+          showRabbis();
           showToast('⚠️ מציג נתונים שמורים');
           return;
         }
