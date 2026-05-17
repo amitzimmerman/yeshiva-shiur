@@ -1,4 +1,4 @@
-const CACHE = 'dror-v8';
+const CACHE = 'dror-v9';
 // data.json מוחרג מה-SHELL — מתעדכן יומי, יטען דינמית
 const SHELL = ['/', '/index.html', '/styles.css', '/app.js', '/dror-logo.png'];
 
