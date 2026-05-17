@@ -551,6 +551,12 @@ function renderShiurim() {
       saveMarks(); renderShiurim();
     });
 
+    const btnSave = clone.querySelector('.btn-save-offline');
+    if (btnSave) {
+      if (downloaded.has(f.id)) { btnSave.textContent = '✅'; btnSave.classList.add('active'); }
+      btnSave.addEventListener('click', () => saveOffline(f));
+    }
+
     list.appendChild(clone);
   });
 }
@@ -756,6 +762,12 @@ function renderGlobalSearch() {
       saveMarks(); renderGlobalSearch();
     });
 
+    const btnSaveG = clone.querySelector('.btn-save-offline');
+    if (btnSaveG) {
+      if (downloaded.has(f.id)) { btnSaveG.textContent = '✅'; btnSaveG.classList.add('active'); }
+      btnSaveG.addEventListener('click', () => saveOffline(f));
+    }
+
     list.appendChild(clone);
   });
 }
@@ -880,6 +892,12 @@ function renderFileList(items, rerender) {
       watched.has(f.id) ? watched.delete(f.id) : watched.add(f.id);
       saveMarks(); rerender();
     });
+
+    const btnSave = clone.querySelector('.btn-save-offline');
+    if (btnSave) {
+      if (downloaded.has(f.id)) { btnSave.textContent = '✅'; btnSave.classList.add('active'); }
+      btnSave.addEventListener('click', () => saveOffline(f));
+    }
 
     list.appendChild(clone);
   });
@@ -1105,6 +1123,39 @@ document.getElementById('aboutBtn').addEventListener('click', () => {
 document.getElementById('aboutClose').addEventListener('click', () => {
   document.getElementById('aboutPage').style.display = 'none';
 });
+
+// ─── PWA Install ──────────────────────────────────────────────────────────────
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  document.getElementById('installBtn').style.display = 'inline-flex';
+});
+window.addEventListener('appinstalled', () => {
+  document.getElementById('installBtn').style.display = 'none';
+  deferredInstallPrompt = null;
+  showToast('✅ האפליקציה הותקנה בהצלחה!');
+});
+document.getElementById('installBtn').addEventListener('click', async () => {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  const { outcome } = await deferredInstallPrompt.userChoice;
+  if (outcome === 'accepted') document.getElementById('installBtn').style.display = 'none';
+  deferredInstallPrompt = null;
+});
+
+// ─── Offline save (native download) ──────────────────────────────────────────
+function saveOffline(f) {
+  const a = document.createElement('a');
+  a.href = dlUrl(f.id);
+  a.download = cleanName(f.name) + '.mp3';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  downloaded.add(f.id);
+  saveMarks();
+  showToast('⬇️ מוריד לטלפון — ניתן להאזין בלי אינטרנט מתיקיית ההורדות');
+}
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
