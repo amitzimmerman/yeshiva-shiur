@@ -1,5 +1,5 @@
-const CACHE       = 'dror-v8';
-const AUDIO_CACHE = 'dror-audio-v1';   // שמור לנצח — לא נמחק בעדכון
+const CACHE = 'dror-v8';
+// data.json מוחרג מה-SHELL — מתעדכן יומי, יטען דינמית
 const SHELL = ['/', '/index.html', '/styles.css', '/app.js', '/dror-logo.png'];
 
 self.addEventListener('install', e => {
@@ -11,11 +11,7 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
-      // מחק גרסאות ישנות — אבל שמור את cache האודיו
-      Promise.all(keys
-        .filter(k => k !== CACHE && k !== AUDIO_CACHE)
-        .map(k => caches.delete(k))
-      )
+      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });
