@@ -320,6 +320,7 @@ function renderRabbis() {
 // ─── Folder navigation ────────────────────────────────────────────────────────
 function openFolder(folder) {
   navStack.push(folder);
+  history.pushState({ depth: navStack.length }, '');
   activeFilter = 'all';
   sortBy = 'name';
   updateSearch();
@@ -502,6 +503,8 @@ async function openPlayerPage(f) {
   const page  = document.getElementById('playerPage');
   const frame = document.getElementById('ppFrame');
   const audio = document.getElementById('ppAudio');
+
+  history.pushState({ player: true }, '');
 
   document.getElementById('ppTitle').textContent = cleanName(f.name);
   document.getElementById('ppCrumb').textContent = (playerContext || []).join(' › ');
@@ -1029,6 +1032,46 @@ document.getElementById('installBtn').addEventListener('click', async () => {
   const { outcome } = await deferredInstallPrompt.userChoice;
   if (outcome === 'accepted') document.getElementById('installBtn').style.display = 'none';
   deferredInstallPrompt = null;
+});
+
+// ─── Android back button ──────────────────────────────────────────────────────
+history.replaceState({ depth: 0 }, '');
+
+window.addEventListener('popstate', () => {
+  const playerPage = document.getElementById('playerPage');
+  const aboutPage  = document.getElementById('aboutPage');
+
+  if (playerPage && playerPage.style.display !== 'none') {
+    const audio = document.getElementById('ppAudio');
+    const frame = document.getElementById('ppFrame');
+    if (audio) { audio.pause(); audio.src = ''; }
+    if (frame) { frame.src = ''; }
+    playerPage.style.display = 'none';
+    document.body.style.overflow = '';
+    playingId = null;
+    history.pushState({ depth: navStack.length }, '');
+    return;
+  }
+
+  if (aboutPage && aboutPage.style.display !== 'none') {
+    aboutPage.style.display = 'none';
+    history.pushState({ depth: 0 }, '');
+    return;
+  }
+
+  if (navStack.length > 0) {
+    navStack.pop();
+    if (navStack.length === 0) {
+      showRabbis();
+    } else {
+      renderFolderContents();
+      updateBreadcrumb();
+    }
+    history.pushState({ depth: navStack.length }, '');
+    return;
+  }
+
+  // בשורש — לחיצה נוספת תצא מהאפליקציה (התנהגות רגילה)
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
