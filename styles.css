@@ -392,12 +392,14 @@ a { color: inherit; text-decoration: none; }
 .btn-dl:hover { background: #edd98a; }
 
 .btn-cache {
+  display: none; /* מוסתר בדפדפן — מוצג רק ב-PWA מותקן */
   padding: 0.38rem 0.95rem; background: #e8f4fd; color: #1a5276;
   border: 1.5px solid #aed6f1; border-radius: 7px; font-size: 0.83rem; font-weight: 700;
   cursor: pointer; white-space: nowrap; transition: background 0.18s;
 }
-.btn-cache:hover   { background: #aed6f1; }
+.btn-cache:hover    { background: #aed6f1; }
 .btn-cache:disabled { opacity: 0.5; cursor: wait; }
+@media (display-mode: standalone) { .btn-cache { display: inline-block; } }
 
 .btn-wa {
   padding: 0.38rem 0.7rem; background: #e9fbe9; color: #1a7a1a;
