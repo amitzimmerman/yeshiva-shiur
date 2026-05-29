@@ -39,13 +39,33 @@ function checkAdmin(callback) {
   overlay.querySelector('#adminCancel').addEventListener('click', () => overlay.remove());
 }
 
+// ─── Visit tracking ──────────────────────────────────────────────────────────
+function logVisit(fresh) {
+  const LAST_KEY = 'dror_last_visit_log';
+  const now = Date.now();
+  // Don't double-log within 5 minutes unless it's a fresh password entry
+  if (!fresh && now - (+localStorage.getItem(LAST_KEY) || 0) < 5 * 60 * 1000) return;
+  localStorage.setItem(LAST_KEY, now);
+  const p = new URLSearchParams({
+    action: 'logVisit',
+    ts:   new Date(now).toISOString(),
+    ua:   navigator.userAgent,
+    lang: navigator.language || ''
+  });
+  fetch(`${SCRIPT_URL}?${p}`, { mode: 'no-cors' }).catch(() => {});
+}
+
 // ─── Password — 30 דקות ───────────────────────────────────────────────────────
 const AUTH_TTL = 30 * 60 * 1000;
 (function() {
   const overlay = document.getElementById('authOverlay');
   try {
     const ts = parseInt(localStorage.getItem('auth_ts') || '0', 10);
-    if (ts && Date.now() - ts < AUTH_TTL) { overlay.style.display = 'none'; return; }
+    if (ts && Date.now() - ts < AUTH_TTL) {
+      overlay.style.display = 'none';
+      logVisit(false);
+      return;
+    }
   } catch(_) {}
   overlay.style.display = 'flex';
   document.body.style.overflow = 'hidden';
@@ -54,6 +74,7 @@ const AUTH_TTL = 30 * 60 * 1000;
       localStorage.setItem('auth_ts', Date.now().toString());
       overlay.style.display = 'none';
       document.body.style.overflow = '';
+      logVisit(true);
     } else {
       document.getElementById('authError').style.display = 'block';
       document.getElementById('authInput').value = '';
@@ -1120,6 +1141,122 @@ document.getElementById('installBtn').addEventListener('click', async () => {
   deferredInstallPrompt = null;
 });
 
+// ─── Analytics Panel ─────────────────────────────────────────────────────────
+function parseUA(ua) {
+  let device = '💻 מחשב';
+  if (/iPhone|Android.*Mobile/.test(ua))       device = '📱 פלאפון';
+  else if (/iPad|Android|Tablet/.test(ua))      device = '📱 טאבלט';
+
+  let browser = 'אחר';
+  if      (/Edg\//.test(ua))   browser = 'Edge';
+  else if (/Chrome\//.test(ua)) browser = 'Chrome';
+  else if (/Firefox\//.test(ua))browser = 'Firefox';
+  else if (/Safari\//.test(ua)) browser = 'Safari';
+
+  return { device, browser };
+}
+
+async function loadAnalytics() {
+  document.getElementById('analyticsStats').innerHTML = '<span style="color:var(--muted);font-size:.9rem">טוען...</span>';
+  document.getElementById('analyticsTable').innerHTML = '';
+  document.getElementById('analyticsNote').style.display = 'none';
+
+  try {
+    const res = await fetch(`${SCRIPT_URL}?action=getVisits`);
+    const raw = await res.json();
+    if (!Array.isArray(raw)) throw new Error('bad');
+    renderAnalytics(raw);
+  } catch(_) {
+    document.getElementById('analyticsStats').innerHTML = '';
+    document.getElementById('analyticsTable').innerHTML = '<p style="text-align:center;color:var(--muted);padding:1.5rem 0">אין נתונים עדיין</p>';
+    const note = document.getElementById('analyticsNote');
+    note.innerHTML = '⚠️ כדי לראות כניסות מכל המכשירים, יש להוסיף קוד ל-Apps Script. <a href="#" id="showAppsScriptCode">הצג הוראות ←</a>';
+    note.style.display = 'block';
+    document.getElementById('showAppsScriptCode').addEventListener('click', e => {
+      e.preventDefault();
+      note.innerHTML = `<b>הוסף לפונקציית <code>doGet(e)</code> ב-Apps Script:</b><br><pre style="font-size:.75rem;text-align:left;background:#f0f2f5;padding:.75rem;border-radius:6px;overflow:auto">if (e.parameter.action === 'logVisit') {
+  var s = SpreadsheetApp.getActiveSpreadsheet()
+    .getSheetByName('Visits') || SpreadsheetApp.getActiveSpreadsheet().insertSheet('Visits');
+  s.appendRow([e.parameter.ts, e.parameter.ua, e.parameter.lang]);
+  return ContentService.createTextOutput('ok');
+}
+if (e.parameter.action === 'getVisits') {
+  var s = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Visits');
+  if (!s) return ContentService.createTextOutput('[]').setMimeType(ContentService.MimeType.JSON);
+  var rows = s.getDataRange().getValues().reverse().slice(0,1000)
+    .map(r => ({ts:r[0], ua:r[1], lang:r[2]}));
+  return ContentService.createTextOutput(JSON.stringify(rows))
+    .setMimeType(ContentService.MimeType.JSON);
+}</pre>לאחר מכן: <b>פרוס מחדש</b> את ה-Apps Script (Deploy → Manage deployments → ✏️ Edit → גרסה חדשה → Deploy).`;
+    });
+  }
+}
+
+function renderAnalytics(visits) {
+  const now   = Date.now();
+  const today = new Date(); today.setHours(0,0,0,0);
+  const weekAgo = today.getTime() - 6 * 24 * 60 * 60 * 1000;
+
+  // visits = [{ts, ua, lang}] — ts may be ISO string
+  const parsed = visits.map(v => ({
+    ...v,
+    ms: typeof v.ts === 'number' ? v.ts : new Date(v.ts).getTime()
+  }));
+
+  const todayN = parsed.filter(v => v.ms >= today.getTime()).length;
+  const weekN  = parsed.filter(v => v.ms >= weekAgo).length;
+
+  document.getElementById('analyticsStats').innerHTML = `
+    <div class="an-stat"><div class="an-num">${parsed.length}</div><div class="an-lbl">סה"כ כניסות</div></div>
+    <div class="an-stat"><div class="an-num">${todayN}</div><div class="an-lbl">היום</div></div>
+    <div class="an-stat"><div class="an-num">${weekN}</div><div class="an-lbl">השבוע</div></div>`;
+
+  if (!parsed.length) {
+    document.getElementById('analyticsTable').innerHTML = '<p style="text-align:center;color:var(--muted);padding:1.5rem 0">אין נתונים עדיין</p>';
+    return;
+  }
+
+  const rows = parsed.slice(0, 300).map(v => {
+    const dateStr = isNaN(v.ms) ? v.ts : new Date(v.ms).toLocaleString('he-IL', {
+      day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit'
+    });
+    const { device, browser } = parseUA(v.ua || '');
+    const lang = (v.lang || '').split('-')[0].toUpperCase() || '—';
+    return `<tr><td>${dateStr}</td><td>${device}</td><td>${browser}</td><td>${lang}</td></tr>`;
+  }).join('');
+
+  document.getElementById('analyticsTable').innerHTML = `
+    <table class="an-table">
+      <thead><tr><th>תאריך ושעה</th><th>מכשיר</th><th>דפדפן</th><th>שפה</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+document.getElementById('analyticsBtn').addEventListener('click', () => {
+  checkAdmin(() => {
+    document.getElementById('analyticsPanel').style.display = 'flex';
+    loadAnalytics();
+  });
+});
+document.getElementById('analyticsPanelClose').addEventListener('click', () => {
+  document.getElementById('analyticsPanel').style.display = 'none';
+});
+document.getElementById('analyticsRefresh').addEventListener('click', loadAnalytics);
+document.getElementById('analyticsExport').addEventListener('click', async () => {
+  try {
+    const res = await fetch(`${SCRIPT_URL}?action=getVisits`);
+    const visits = await res.json();
+    const csv = ['תאריך,מכשיר,דפדפן,שפה', ...visits.map(v => {
+      const d = new Date(v.ts).toLocaleString('he-IL');
+      const { device, browser } = parseUA(v.ua || '');
+      const lang = (v.lang || '').split('-')[0].toUpperCase();
+      return `"${d}","${device}","${browser}","${lang}"`;
+    })].join('\n');
+    await navigator.clipboard.writeText(csv);
+    showToast('📋 הועתק — הדבק ב-Excel / גיליון Google');
+  } catch(_) { showToast('❌ שגיאה בייצוא'); }
+});
+
 // ─── Android back button ──────────────────────────────────────────────────────
 history.replaceState({ depth: 0 }, '');
 
@@ -1135,6 +1272,13 @@ window.addEventListener('popstate', () => {
     playerPage.style.display = 'none';
     document.body.style.overflow = '';
     playingId = null;
+    history.pushState({ depth: navStack.length }, '');
+    return;
+  }
+
+  const analyticsPage = document.getElementById('analyticsPanel');
+  if (analyticsPage && analyticsPage.style.display !== 'none') {
+    analyticsPage.style.display = 'none';
     history.pushState({ depth: navStack.length }, '');
     return;
   }

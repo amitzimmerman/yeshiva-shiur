@@ -43,6 +43,7 @@
       <button class="btn-reload-top" id="reloadBtn">🔄</button>
       <button class="btn-header-icon" id="favoritesBtn" title="מועדפים">❤️</button>
       <button class="btn-header-icon" id="downloadsBtn" title="מה הורדתי">⬇️ הורדות</button>
+      <button class="btn-header-icon" id="analyticsBtn" title="לוח בקרה">📊</button>
       <button class="btn-header-icon" id="aboutBtn" title="על הישיבה">ℹ️</button>
       <button class="btn-header-icon" id="settingsBtn" title="הגדרות">⚙️</button>
     </div>
@@ -75,6 +76,23 @@
       <button class="btn-settings-cancel" id="settingsCancel">ביטול</button>
     </div>
     <p class="settings-sync-status" id="syncStatus"></p>
+  </div>
+</div>
+
+<!-- Analytics Panel -->
+<div id="analyticsPanel" class="settings-overlay" style="display:none;">
+  <div class="analytics-box">
+    <div class="analytics-header">
+      <span class="analytics-title">📊 לוח בקרה — כניסות לאתר</span>
+      <button id="analyticsPanelClose" class="btn-settings-cancel" style="padding:0.25rem 0.7rem;">✕</button>
+    </div>
+    <div id="analyticsStats" class="analytics-stats"></div>
+    <div id="analyticsTable" class="analytics-table-wrap"></div>
+    <div class="settings-actions" style="margin-top:0.75rem;">
+      <button id="analyticsRefresh" class="btn-settings-save">🔄 רענן</button>
+      <button id="analyticsExport" class="btn-sync">📋 ייצא CSV</button>
+    </div>
+    <p class="settings-note" id="analyticsNote" style="display:none;"></p>
   </div>
 </div>
 
