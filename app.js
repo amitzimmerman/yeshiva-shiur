@@ -84,52 +84,6 @@ const AUTH_TTL = 30 * 60 * 1000;
   document.getElementById('authInput').addEventListener('keydown', e => { if (e.key === 'Enter') check(); });
 })();
 
-// ─── Audio offline cache ──────────────────────────────────────────────────────
-const AUDIO_CACHE_NAME = 'dror-audio-v1';
-const cachedFileIds    = new Set();
-let   currentBlobUrl   = null;
-
-function audioKey(id) { return `https://dror-audio-cache/${id}`; }
-
-async function initAudioCache() {
-  if (!('caches' in window)) return;
-  try {
-    const cache = await caches.open(AUDIO_CACHE_NAME);
-    const keys  = await cache.keys();
-    keys.forEach(req => cachedFileIds.add(req.url.replace('https://dror-audio-cache/', '')));
-  } catch(_) {}
-}
-
-async function cacheAudioFile(id) {
-  if (!('caches' in window)) return false;
-  try {
-    const res = await fetch(dlUrl(id));
-    if (!res.ok) return false;
-    const cache = await caches.open(AUDIO_CACHE_NAME);
-    await cache.put(audioKey(id), res);
-    cachedFileIds.add(id);
-    return true;
-  } catch(_) { return false; }
-}
-
-async function removeCachedAudio(id) {
-  if (!('caches' in window)) return;
-  try {
-    const cache = await caches.open(AUDIO_CACHE_NAME);
-    await cache.delete(audioKey(id));
-    cachedFileIds.delete(id);
-  } catch(_) {}
-}
-
-async function getCachedBlobUrl(id) {
-  try {
-    const cache = await caches.open(AUDIO_CACHE_NAME);
-    const res   = await cache.match(audioKey(id));
-    if (!res) return null;
-    return URL.createObjectURL(await res.blob());
-  } catch(_) { return null; }
-}
-
 // ─── Marks ────────────────────────────────────────────────────────────────────
 let liked      = new Set(JSON.parse(localStorage.getItem('liked')      || '[]'));
 let watched    = new Set(JSON.parse(localStorage.getItem('watched')    || '[]'));
@@ -531,31 +485,6 @@ function renderShiurim() {
     btnDl.href = dlUrl(f.id);
     btnDl.addEventListener('click', () => { downloaded.add(f.id); saveMarks(); showToast('⬇️ מוריד...'); });
 
-    // 📥 אפליקציה — שמירה לcache (מוצג רק ב-PWA מותקן דרך CSS)
-    const fileIcon = clone.querySelector('.file-icon');
-    if (cachedFileIds.has(f.id)) fileIcon.textContent = '📥';
-
-    const btnCache = clone.querySelector('.btn-cache');
-    if (btnCache) {
-      if (cachedFileIds.has(f.id)) {
-        btnCache.textContent = '🗑 מחק';
-        btnCache.addEventListener('click', async () => {
-          await removeCachedAudio(f.id);
-          showToast('🗑 הוסר מהאחסון');
-          renderShiurim();
-        });
-      } else {
-        btnCache.addEventListener('click', async () => {
-          showToast('⬇️ שומר לאפליקציה...');
-          btnCache.disabled = true;
-          const ok = await cacheAudioFile(f.id);
-          btnCache.disabled = false;
-          if (ok) { showToast('✅ נשמר — ניתן להאזין אופליין'); renderShiurim(); }
-          else    { showToast('❌ שמירה נכשלה — בדוק חיבור'); }
-        });
-      }
-    }
-
     const btnLike = clone.querySelector('.btn-like');
     btnLike.textContent = liked.has(f.id) ? '❤️' : '🤍';
     if (liked.has(f.id)) btnLike.classList.add('active');
@@ -602,26 +531,9 @@ async function openPlayerPage(f) {
   document.getElementById('ppTitle').textContent = cleanName(f.name);
   document.getElementById('ppCrumb').textContent = (playerContext || []).join(' › ');
 
-  // נקה Blob URL קודם
-  if (currentBlobUrl) { URL.revokeObjectURL(currentBlobUrl); currentBlobUrl = null; }
-
-  if (cachedFileIds.has(f.id)) {
-    const blobUrl = await getCachedBlobUrl(f.id);
-    if (blobUrl) {
-      currentBlobUrl = blobUrl;
-      frame.src = ''; frame.style.display = 'none';
-      audio.src = blobUrl; audio.style.display = 'block';
-      audio.load(); audio.play().catch(() => {});
-    } else {
-      frame.src = `https://drive.google.com/file/d/${f.id}/preview`;
-      frame.style.display = 'block';
-      audio.style.display = 'none';
-    }
-  } else {
-    frame.src = `https://drive.google.com/file/d/${f.id}/preview`;
-    frame.style.display = 'block';
-    audio.pause(); audio.src = ''; audio.style.display = 'none';
-  }
+  frame.src = `https://drive.google.com/file/d/${f.id}/preview`;
+  frame.style.display = 'block';
+  audio.pause(); audio.src = ''; audio.style.display = 'none';
 
   page.style.display = 'flex';
   page.scrollTop = 0;
@@ -679,7 +591,6 @@ document.getElementById('ppClose').addEventListener('click', () => {
   document.getElementById('ppFrame').src = '';
   const audio = document.getElementById('ppAudio');
   audio.pause(); audio.src = ''; audio.style.display = 'none';
-  if (currentBlobUrl) { URL.revokeObjectURL(currentBlobUrl); currentBlobUrl = null; }
   document.getElementById('playerPage').style.display = 'none';
   document.body.style.overflow = '';
   playingId = null;
@@ -1308,4 +1219,4 @@ window.addEventListener('popstate', () => {
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
-initAudioCache().then(() => fetchData());
+fetchData();
